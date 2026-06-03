@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thermal Workstation Occupancy Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Thermal occupancy prototype</p>
+          <h1>Welding workstation dashboard</h1>
+        </div>
+        <div class="sync-panel" aria-live="polite">
+          <span class="live-dot"></span>
+          <div>
+            <span class="sync-label">Live simulation</span>
+            <strong id="lastUpdated">--</strong>
+          </div>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Dashboard summary">
+        <article class="metric-block">
+          <span class="metric-label">Monitored benches</span>
+          <strong>2</strong>
+        </article>
+        <article class="metric-block">
+          <span class="metric-label">Occupied</span>
+          <strong id="occupiedCount">0</strong>
+        </article>
+        <article class="metric-block">
+          <span class="metric-label">Free</span>
+          <strong id="freeCount">0</strong>
+        </article>
+        <article class="metric-block">
+          <span class="metric-label">Detection mode</span>
+          <strong>ROI + temporal</strong>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="status-column" aria-label="Workstation status">
+          <article class="bench-panel" id="bench-1-panel">
+            <div class="bench-heading">
+              <div>
+                <span class="bench-label">Welding Bench 1</span>
+                <h2 id="bench-1-status">--</h2>
+              </div>
+              <span class="status-indicator" id="bench-1-dot"></span>
+            </div>
+            <div class="bench-details">
+              <span>Confidence <strong id="bench-1-confidence">--</strong></span>
+              <span>Peak <strong id="bench-1-peak">--</strong></span>
+              <span>Last change <strong id="bench-1-change">--</strong></span>
+            </div>
+          </article>
+
+          <article class="bench-panel" id="bench-2-panel">
+            <div class="bench-heading">
+              <div>
+                <span class="bench-label">Welding Bench 2</span>
+                <h2 id="bench-2-status">--</h2>
+              </div>
+              <span class="status-indicator" id="bench-2-dot"></span>
+            </div>
+            <div class="bench-details">
+              <span>Confidence <strong id="bench-2-confidence">--</strong></span>
+              <span>Peak <strong id="bench-2-peak">--</strong></span>
+              <span>Last change <strong id="bench-2-change">--</strong></span>
+            </div>
+          </article>
+
+          <div class="timeline-panel">
+            <div class="section-title-row">
+              <h2>Recent occupancy</h2>
+              <span>Last 12 samples</span>
+            </div>
+            <div class="timeline-row">
+              <span>Bench 1</span>
+              <div class="timeline" id="bench-1-timeline"></div>
+            </div>
+            <div class="timeline-row">
+              <span>Bench 2</span>
+              <div class="timeline" id="bench-2-timeline"></div>
+            </div>
+          </div>
+        </div>
+
+        <section class="thermal-area" aria-label="Thermal map">
+          <div class="section-title-row">
+            <div>
+              <h2>Thermal ROI view</h2>
+              <p>Simulated 80x60 radiometric frame mapped to two workstation regions.</p>
+            </div>
+            <span id="frameLabel">Frame 0000</span>
+          </div>
+
+          <div class="heatmap-frame">
+            <canvas id="heatmapCanvas" width="800" height="520" aria-label="Simulated thermal heatmap"></canvas>
+            <div class="roi roi-one">
+              <span>Bench 1 ROI</span>
+            </div>
+            <div class="roi roi-two">
+              <span>Bench 2 ROI</span>
+            </div>
+          </div>
+
+          <div class="legend-row" aria-label="Thermal color legend">
+            <span>Cool</span>
+            <div class="legend-bar"></div>
+            <span>Hot</span>
+          </div>
+        </section>
+      </section>
+
+      <section class="bottom-grid">
+        <section class="activity-panel">
+          <div class="section-title-row">
+            <h2>Event log</h2>
+            <span id="eventCount">0 events</span>
+          </div>
+          <ul id="eventLog"></ul>
+        </section>
+
+        <section class="control-panel">
+          <div class="section-title-row">
+            <h2>Demo controls</h2>
+            <span id="simulationState">Auto update on</span>
+          </div>
+          <div class="control-grid">
+            <button id="toggleAuto" type="button">Pause auto</button>
+            <button id="toggleBench1" type="button">Toggle Bench 1</button>
+            <button id="toggleBench2" type="button">Toggle Bench 2</button>
+            <button id="residualTest" type="button">Residual heat test</button>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>

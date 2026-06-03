@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+.env
+output.jpg
+thermal_color.jpg
+*.mp4
+*.avi
+node_modules/

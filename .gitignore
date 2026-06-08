@@ -7,3 +7,4 @@ thermal_color.jpg
 *.mp4
 *.avi
 node_modules/
+data/

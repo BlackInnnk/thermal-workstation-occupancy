@@ -34,6 +34,26 @@ Useful options:
 sudo python3 sensor/thermal_roi_viewer.py --threshold 30 --scale 10
 ```
 
+## Collect Labelled Thermal Data
+
+Use this after the Lepton camera is installed in the real workstation position.
+
+```bash
+sudo python3 sensor/collect_thermal_dataset.py
+```
+
+Keyboard labels in the OpenCV preview window:
+
+```text
+f = free
+o = occupied
+r = residual heat
+p = passing
+q = quit
+```
+
+Data is saved under `data/raw/<session>/` and is ignored by git.
+
 ## Planned Pipeline
 
 ```text

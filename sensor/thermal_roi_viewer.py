@@ -11,8 +11,8 @@ from pylepton import Lepton
 # ROI format: x, y, width, height in the original 80x60 Lepton frame.
 # Adjust these values after checking the real camera mounting position.
 DEFAULT_ROIS = {
-    "Bench 1": (5, 10, 32, 40),
-    "Bench 2": (43, 10, 32, 40),
+    "Tool Area": (0, 20, 28, 25),
+    "Human Area": (38, 4, 42, 55),
 }
 
 

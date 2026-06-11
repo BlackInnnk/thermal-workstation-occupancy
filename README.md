@@ -42,13 +42,13 @@ Use this after the Lepton camera is installed in the real workstation position.
 sudo python3 sensor/collect_thermal_dataset.py
 ```
 
-Keyboard labels in the OpenCV preview window:
+Keyboard controls in the OpenCV preview window:
 
 ```text
+Enter = start / stop recording
 f = free
 o = occupied
 r = residual heat
-p = passing
 q = quit
 ```
 

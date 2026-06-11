@@ -15,7 +15,6 @@ LABEL_KEYS = {
     ord("f"): "free",
     ord("o"): "occupied",
     ord("r"): "residual",
-    ord("p"): "passing",
 }
 
 
@@ -23,7 +22,7 @@ def raw_to_celsius(frame):
     return (frame.astype(np.float32) * 0.01) - 273.15
 
 
-def make_preview(frame, label, frame_index, scale):
+def make_preview(frame, label, frame_index, scale, is_recording):
     normalized = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
     normalized = np.uint8(normalized)
     color = cv2.applyColorMap(normalized, cv2.COLORMAP_INFERNO)
@@ -33,21 +32,34 @@ def make_preview(frame, label, frame_index, scale):
     max_temp = float(np.max(temp_c))
     min_temp = float(np.min(temp_c))
 
-    cv2.rectangle(preview, (0, 0), (preview.shape[1], 72), (0, 0, 0), -1)
+    status = "RECORDING" if is_recording else "PAUSED"
+    status_color = (0, 80, 255) if is_recording else (180, 180, 180)
+
+    cv2.rectangle(preview, (0, 0), (preview.shape[1], 96), (0, 0, 0), -1)
+    cv2.putText(
+        preview,
+        status,
+        (12, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.72,
+        status_color,
+        2,
+        cv2.LINE_AA,
+    )
     cv2.putText(
         preview,
         f"Label: {label}",
-        (12, 28),
+        (12, 58),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.75,
+        0.68,
         (255, 255, 255),
         2,
         cv2.LINE_AA,
     )
     cv2.putText(
         preview,
-        f"Frame {frame_index:06d}   min {min_temp:.1f}C   max {max_temp:.1f}C",
-        (12, 56),
+        f"Saved {frame_index:06d}   min {min_temp:.1f}C   max {max_temp:.1f}C",
+        (12, 84),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.48,
         (255, 255, 255),
@@ -95,7 +107,7 @@ def parse_args():
     parser.add_argument(
         "--label",
         default="free",
-        choices=["free", "occupied", "residual", "passing"],
+        choices=["free", "occupied", "residual"],
         help="Initial label for saved frames.",
     )
     parser.add_argument(
@@ -136,7 +148,8 @@ def main():
                 f"fps={args.fps}",
                 "sensor=FLIR Lepton 2.5 radiometric",
                 "frame_shape=60x80",
-                "labels=free,occupied,residual,passing",
+                "labels=free,occupied,residual",
+                "controls=enter toggles recording, f/o/r changes label, q quits",
             ]
         )
         + "\n",
@@ -145,7 +158,8 @@ def main():
 
     print("Starting thermal dataset collection.")
     print(f"Session: {session_dir}")
-    print("Keys: f=free, o=occupied, r=residual, p=passing, q=quit")
+    print("State: PAUSED. Press Enter in the preview window to start recording.")
+    print("Keys: Enter=start/stop recording, f=free, o=occupied, r=residual, q=quit")
 
     with labels_path.open("w", newline="", encoding="utf-8") as labels_file:
         writer = csv.DictWriter(
@@ -163,62 +177,59 @@ def main():
         writer.writeheader()
 
         with Lepton(args.device) as lepton:
-            next_capture_time = 0.0
+            is_recording = False
+            next_save_time = 0.0
 
             while True:
-                now = time.time()
-                if now < next_capture_time:
-                    time.sleep(min(0.02, next_capture_time - now))
-                    key = cv2.waitKey(1) & 0xFF
-                    if key in LABEL_KEYS:
-                        current_label = LABEL_KEYS[key]
-                        print(f"Label changed to {current_label}")
-                    elif key == ord("q"):
-                        break
-                    continue
-
                 frame, _ = lepton.capture()
                 frame = np.squeeze(frame).astype(np.uint16)
                 temp_c = raw_to_celsius(frame)
 
-                filename = f"frame_{frame_index:06d}.npy"
-                frame_path = frames_dir / filename
-                np.save(frame_path, frame)
-
-                timestamp = datetime.now().isoformat(timespec="milliseconds")
-                writer.writerow(
-                    {
-                        "timestamp": timestamp,
-                        "frame_index": frame_index,
-                        "filename": f"frames/{filename}",
-                        "label": current_label,
-                        "min_c": f"{float(np.min(temp_c)):.3f}",
-                        "max_c": f"{float(np.max(temp_c)):.3f}",
-                        "mean_c": f"{float(np.mean(temp_c)):.3f}",
-                    }
-                )
-                labels_file.flush()
-
-                preview = make_preview(frame, current_label, frame_index, args.scale)
+                preview = make_preview(frame, current_label, frame_index, args.scale, is_recording)
                 cv2.imshow("Thermal Dataset Collector", preview)
 
-                if args.preview_every > 0 and frame_index % args.preview_every == 0:
-                    cv2.imwrite(str(previews_dir / f"preview_{frame_index:06d}.png"), preview)
+                now = time.time()
+                if is_recording and now >= next_save_time:
+                    filename = f"frame_{frame_index:06d}.npy"
+                    frame_path = frames_dir / filename
+                    np.save(frame_path, frame)
 
-                print(
-                    f"{frame_index:06d} {current_label:9s} "
-                    f"min={float(np.min(temp_c)):.1f}C "
-                    f"max={float(np.max(temp_c)):.1f}C "
-                    f"mean={float(np.mean(temp_c)):.1f}C"
-                )
+                    timestamp = datetime.now().isoformat(timespec="milliseconds")
+                    writer.writerow(
+                        {
+                            "timestamp": timestamp,
+                            "frame_index": frame_index,
+                            "filename": f"frames/{filename}",
+                            "label": current_label,
+                            "min_c": f"{float(np.min(temp_c)):.3f}",
+                            "max_c": f"{float(np.max(temp_c)):.3f}",
+                            "mean_c": f"{float(np.mean(temp_c)):.3f}",
+                        }
+                    )
+                    labels_file.flush()
 
-                frame_index += 1
-                next_capture_time = time.time() + frame_interval
+                    if args.preview_every > 0 and frame_index % args.preview_every == 0:
+                        cv2.imwrite(str(previews_dir / f"preview_{frame_index:06d}.png"), preview)
+
+                    print(
+                        f"{frame_index:06d} {current_label:8s} "
+                        f"min={float(np.min(temp_c)):.1f}C "
+                        f"max={float(np.max(temp_c)):.1f}C "
+                        f"mean={float(np.mean(temp_c)):.1f}C"
+                    )
+
+                    frame_index += 1
+                    next_save_time = now + frame_interval
 
                 key = cv2.waitKey(1) & 0xFF
                 if key in LABEL_KEYS:
                     current_label = LABEL_KEYS[key]
                     print(f"Label changed to {current_label}")
+                elif key in (10, 13):
+                    is_recording = not is_recording
+                    state = "RECORDING" if is_recording else "PAUSED"
+                    print(f"State changed to {state} with label {current_label}")
+                    next_save_time = 0.0
                 elif key == ord("q"):
                     break
 

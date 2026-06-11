@@ -28,6 +28,24 @@ Run the viewer:
 sudo python3 sensor/thermal_roi_viewer.py
 ```
 
+Adjust ROI boxes interactively:
+
+```bash
+sudo python3 sensor/adjust_rois.py
+```
+
+Controls:
+
+```text
+1 / 2 = select ROI
+Arrow keys or WASD = move selected ROI
++ / - = scale selected ROI
+J / L = shrink / grow width
+K / I = shrink / grow height
+Enter = save ROI positions to thermal_roi_viewer.py and exit
+Q = quit without saving
+```
+
 Useful options:
 
 ```bash

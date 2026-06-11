@@ -66,11 +66,21 @@ Keyboard controls in the OpenCV preview window:
 Enter = start / stop recording
 f = free
 o = occupied
-r = residual heat
+c = cooling after switch-off
+h = hot_empty / unattended hot tool
 q = quit
 ```
 
 Data is saved under `data/raw/<session>/` and is ignored by git.
+
+Label meanings:
+
+| Label | Situation | Occupancy | Safety |
+|---|---|---|---|
+| `free` | No person, workstation is cold | Free | Normal |
+| `occupied` | Person is seated or standing at the workstation | Occupied | Normal |
+| `cooling` | No person, tool has been switched off but is still cooling | Free | Cooling |
+| `hot_empty` | No person, tool is still on or dangerously hot | Free | Alert |
 
 ## Planned Pipeline
 

@@ -14,8 +14,11 @@ from pylepton import Lepton
 LABEL_KEYS = {
     ord("f"): "free",
     ord("o"): "occupied",
-    ord("r"): "residual",
+    ord("c"): "cooling",
+    ord("h"): "hot_empty",
 }
+
+LABELS = ["free", "occupied", "cooling", "hot_empty"]
 
 
 def raw_to_celsius(frame):
@@ -107,7 +110,7 @@ def parse_args():
     parser.add_argument(
         "--label",
         default="free",
-        choices=["free", "occupied", "residual"],
+        choices=LABELS,
         help="Initial label for saved frames.",
     )
     parser.add_argument(
@@ -148,8 +151,8 @@ def main():
                 f"fps={args.fps}",
                 "sensor=FLIR Lepton 2.5 radiometric",
                 "frame_shape=60x80",
-                "labels=free,occupied,residual",
-                "controls=enter toggles recording, f/o/r changes label, q quits",
+                "labels=free,occupied,cooling,hot_empty",
+                "controls=enter toggles recording, f/o/c/h changes label, q quits",
             ]
         )
         + "\n",
@@ -159,7 +162,10 @@ def main():
     print("Starting thermal dataset collection.")
     print(f"Session: {session_dir}")
     print("State: PAUSED. Press Enter in the preview window to start recording.")
-    print("Keys: Enter=start/stop recording, f=free, o=occupied, r=residual, q=quit")
+    print(
+        "Keys: Enter=start/stop recording, f=free, o=occupied, "
+        "c=cooling, h=hot_empty, q=quit"
+    )
 
     with labels_path.open("w", newline="", encoding="utf-8") as labels_file:
         writer = csv.DictWriter(
@@ -212,7 +218,7 @@ def main():
                         cv2.imwrite(str(previews_dir / f"preview_{frame_index:06d}.png"), preview)
 
                     print(
-                        f"{frame_index:06d} {current_label:8s} "
+                        f"{frame_index:06d} {current_label:10s} "
                         f"min={float(np.min(temp_c)):.1f}C "
                         f"max={float(np.max(temp_c)):.1f}C "
                         f"mean={float(np.mean(temp_c)):.1f}C"

@@ -82,6 +82,72 @@ Label meanings:
 | `cooling` | No person, tool has been switched off but is still cooling | Free | Cooling |
 | `hot_empty` | No person, tool is still on or dangerously hot | Free | Alert |
 
+## Run First Rule-Based Monitor
+
+The first monitor keeps occupancy and thermal safety as separate state machines:
+
+```bash
+sudo python3 sensor/workstation_monitor.py
+```
+
+Occupancy states:
+
+| State | Meaning |
+|---|---|
+| `FREE` | No confirmed person and no recent use |
+| `OCCUPIED` | A human-sized connected thermal region has persisted for 5 seconds |
+| `RECENTLY_USED` | The person has left, but the workstation was used within the last 15 minutes |
+
+Safety states:
+
+| State | Meaning |
+|---|---|
+| `IN_USE` | The workstation is occupied |
+| `SAFE` | Tool-area temperature is below the safe threshold |
+| `MONITORING` | The workstation is empty and warm; more trend data is needed |
+| `COOLING` | Tool-area temperature is decreasing |
+| `UNATTENDED_HOT` | The workstation is empty and remains above the alert threshold without sufficient cooling |
+
+Default baseline parameters:
+
+```text
+Human threshold: max(27 C, ambient + 4 C)
+Human connected component: at least 2.5% of Human Area, minimum 20 pixels
+Occupied confirmation: 5 seconds
+Leave confirmation: 15 seconds
+Recently used duration: 15 minutes
+Safe tool temperature: below 38 C
+Hot tool alert threshold: 45 C
+Cooling trend: at least -0.5 C/min
+Unattended hot delay: 3 minutes
+```
+
+These are initial engineering values, not final research results. They should be calibrated from the labelled dataset.
+
+The monitor also writes machine-readable status to:
+
+```text
+data/runtime/status.json
+```
+
+Useful tuning example:
+
+```bash
+sudo python3 sensor/workstation_monitor.py \
+  --human-delta 4 \
+  --occupied-confirm 5 \
+  --leave-confirm 15 \
+  --tool-safe 38 \
+  --tool-alert 45 \
+  --unattended-delay-seconds 180
+```
+
+Run the state-logic tests:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 ## Planned Pipeline
 
 ```text

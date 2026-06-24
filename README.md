@@ -146,6 +146,24 @@ confusion_matrix.png
 
 Important limitation: this first script uses a random frame-level split, so nearby frames from the same recording can appear in both train and test sets. This is useful for a first proof of concept, but the final evaluation should also test on a separate recording session.
 
+Evaluate a saved model on a separate recording session:
+
+```bash
+python3 sensor/evaluate_model.py \
+  models/<run>/model.npz \
+  data/raw/eval_01
+```
+
+Evaluation outputs are written to `models/<run>/evaluations/<session>/`:
+
+```text
+metrics.json
+class_metrics.csv
+predictions.csv
+confusion_matrix.csv
+confusion_matrix.png
+```
+
 ## Run First Rule-Based Monitor
 
 The first monitor keeps occupancy and thermal safety as separate state machines:

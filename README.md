@@ -82,6 +82,70 @@ Label meanings:
 | `cooling` | No person, tool has been switched off but is still cooling | Free | Cooling |
 | `hot_empty` | No person, tool is still on or dangerously hot | Free | Alert |
 
+## Analyse Collected Dataset
+
+After copying a dataset session from the Raspberry Pi to this computer, generate a quick summary and visual checks:
+
+```bash
+python3 -m pip install numpy pillow
+```
+
+```bash
+python3 sensor/analyse_dataset.py data/raw/<session>
+```
+
+If no session is provided, the script analyses the latest folder under `data/raw/`.
+
+```bash
+python3 sensor/analyse_dataset.py
+```
+
+Outputs are written to `data/analysis/<session>/`:
+
+```text
+summary.txt
+summary.json
+label_counts.csv
+temperature_summary.csv
+label_distribution.png
+label_timeline.png
+max_temperature_timeline.png
+sample_grid.png
+```
+
+Use this before training to check label balance, temperature ranges, and whether the saved examples match the intended class labels.
+
+## Train First Neural-Network Baseline
+
+The first training script uses a small NumPy MLP instead of Edge Impulse. This keeps the training process local, reproducible, and easy to explain in the dissertation. Edge Impulse can still be considered later for deployment, after the data pipeline and labels are validated.
+
+```bash
+python3 sensor/train_thermal_mlp.py \
+  data/raw/20260611_195455 \
+  data/raw/free_neighbor_person_01
+```
+
+The model is a one-hidden-layer neural network trained on the full 80x60 radiometric thermal frame. It outputs four classes:
+
+```text
+free
+occupied
+cooling
+hot_empty
+```
+
+Outputs are written to `models/<run>/` and ignored by git:
+
+```text
+model.npz
+metrics.json
+training_curves.csv
+confusion_matrix.csv
+confusion_matrix.png
+```
+
+Important limitation: this first script uses a random frame-level split, so nearby frames from the same recording can appear in both train and test sets. This is useful for a first proof of concept, but the final evaluation should also test on a separate recording session.
+
 ## Run First Rule-Based Monitor
 
 The first monitor keeps occupancy and thermal safety as separate state machines:

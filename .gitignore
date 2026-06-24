@@ -8,3 +8,4 @@ thermal_color.jpg
 *.avi
 node_modules/
 data/
+models/

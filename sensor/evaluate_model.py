@@ -11,6 +11,7 @@ import numpy as np
 
 from train_thermal_mlp import (
     LABEL_ORDER,
+    OCCUPANCY_LABEL_ORDER,
     confusion_matrix,
     draw_confusion_matrix,
     load_frames,
@@ -24,8 +25,15 @@ from train_thermal_mlp import (
 def load_model(model_path):
     data = np.load(model_path)
     labels = [str(label) for label in data["labels"]]
-    if labels != LABEL_ORDER:
-        raise ValueError(f"Model labels {labels} do not match expected labels {LABEL_ORDER}")
+    if labels == LABEL_ORDER:
+        task = "state"
+    elif labels == OCCUPANCY_LABEL_ORDER:
+        task = "occupancy"
+    else:
+        raise ValueError(
+            f"Model labels {labels} do not match expected labels {LABEL_ORDER} "
+            f"or {OCCUPANCY_LABEL_ORDER}"
+        )
 
     model = {
         "w1": data["w1"].astype(np.float32),
@@ -35,7 +43,7 @@ def load_model(model_path):
     }
     mean = data["mean"].astype(np.float32)
     std = data["std"].astype(np.float32)
-    return model, mean, std
+    return model, mean, std, labels, task
 
 
 def default_output_dir(model_path, session_dirs):
@@ -44,9 +52,9 @@ def default_output_dir(model_path, session_dirs):
     return model_path.parent / "evaluations" / safe_name
 
 
-def per_class_metrics(matrix):
+def per_class_metrics(matrix, labels):
     rows = []
-    for idx, label in enumerate(LABEL_ORDER):
+    for idx, label in enumerate(labels):
         tp = int(matrix[idx, idx])
         fp = int(matrix[:, idx].sum() - tp)
         fn = int(matrix[idx, :].sum() - tp)
@@ -83,17 +91,18 @@ def write_class_metrics_csv(path, rows):
             )
 
 
-def write_predictions_csv(path, rows, y_true, y_pred, probs):
+def write_predictions_csv(path, rows, y_true, y_pred, probs, labels):
     with path.open("w", newline="", encoding="utf-8") as handle:
         fieldnames = [
             "session",
             "frame_index",
             "filename",
+            "source_label",
             "actual",
             "predicted",
             "correct",
             "confidence",
-        ] + [f"prob_{label}" for label in LABEL_ORDER]
+        ] + [f"prob_{label}" for label in labels]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
 
@@ -102,12 +111,13 @@ def write_predictions_csv(path, rows, y_true, y_pred, probs):
                 "session": row["session"],
                 "frame_index": row["frame_index"],
                 "filename": str(row["frame_path"]),
-                "actual": LABEL_ORDER[int(true_id)],
-                "predicted": LABEL_ORDER[int(pred_id)],
+                "source_label": row.get("source_label", row["label"]),
+                "actual": labels[int(true_id)],
+                "predicted": labels[int(pred_id)],
                 "correct": int(true_id == pred_id),
                 "confidence": f"{float(np.max(prob_row)):.6f}",
             }
-            for label_id, label in enumerate(LABEL_ORDER):
+            for label_id, label in enumerate(labels):
                 out[f"prob_{label}"] = f"{float(prob_row[label_id]):.6f}"
             writer.writerow(out)
 
@@ -139,32 +149,35 @@ def main():
     output_dir = args.output_dir.resolve() if args.output_dir else default_output_dir(model_path, session_dirs)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    model, mean, std = load_model(model_path)
-    rows = read_dataset_rows(session_dirs)
-    x, y = load_frames(rows)
+    model, mean, std, labels, task = load_model(model_path)
+    rows = read_dataset_rows(session_dirs, task=task)
+    x, y = load_frames(rows, labels=labels)
     x = (x - mean) / std
 
     y_pred, probs = predict(model, x)
     accuracy = float(np.mean(y_pred == y))
     loss = unweighted_loss(model, x, y)
-    matrix = confusion_matrix(y, y_pred, len(LABEL_ORDER))
-    class_rows = per_class_metrics(matrix)
+    matrix = confusion_matrix(y, y_pred, len(labels))
+    class_rows = per_class_metrics(matrix, labels)
 
-    write_confusion_csv(output_dir / "confusion_matrix.csv", matrix)
-    draw_confusion_matrix(output_dir / "confusion_matrix.png", matrix, "Independent evaluation confusion matrix")
+    write_confusion_csv(output_dir / "confusion_matrix.csv", matrix, labels=labels)
+    draw_confusion_matrix(output_dir / "confusion_matrix.png", matrix, "Independent evaluation confusion matrix", labels=labels)
     write_class_metrics_csv(output_dir / "class_metrics.csv", class_rows)
-    write_predictions_csv(output_dir / "predictions.csv", rows, y, y_pred, probs)
+    write_predictions_csv(output_dir / "predictions.csv", rows, y, y_pred, probs, labels=labels)
 
     label_counts = Counter(row["label"] for row in rows)
+    source_counts = Counter(row["source_label"] for row in rows)
     metrics = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "model_path": str(model_path),
+        "task": task,
         "sessions": [str(path) for path in session_dirs],
-        "labels": LABEL_ORDER,
+        "labels": labels,
         "frames": len(rows),
         "accuracy": accuracy,
         "loss": loss,
-        "label_counts": {label: int(label_counts.get(label, 0)) for label in LABEL_ORDER},
+        "label_counts": {label: int(label_counts.get(label, 0)) for label in labels},
+        "source_label_counts": {label: int(source_counts.get(label, 0)) for label in LABEL_ORDER},
         "class_metrics": class_rows,
         "confusion_matrix": matrix.tolist(),
         "note": "This is an independent session-level evaluation when the evaluated sessions were not used for training.",
@@ -176,7 +189,7 @@ def main():
     print(f"Accuracy: {accuracy:.3f}")
     print(f"Loss: {loss:.6f}")
     print("Label counts:")
-    for label in LABEL_ORDER:
+    for label in labels:
         print(f"  {label}: {label_counts.get(label, 0)}")
     print("Confusion matrix rows=actual, columns=predicted:")
     print(matrix)

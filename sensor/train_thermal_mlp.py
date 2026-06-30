@@ -19,6 +19,17 @@ except ImportError:  # pragma: no cover - optional reporting dependency
 
 
 LABEL_ORDER = ["free", "occupied", "cooling", "hot_empty"]
+OCCUPANCY_LABEL_ORDER = ["not_occupied", "occupied"]
+TASK_LABELS = {
+    "state": LABEL_ORDER,
+    "occupancy": OCCUPANCY_LABEL_ORDER,
+}
+OCCUPANCY_LABEL_MAP = {
+    "free": "not_occupied",
+    "cooling": "not_occupied",
+    "hot_empty": "not_occupied",
+    "occupied": "occupied",
+}
 FRAME_HEIGHT = 60
 FRAME_WIDTH = 80
 INPUT_DIM = FRAME_HEIGHT * FRAME_WIDTH
@@ -28,6 +39,7 @@ LABEL_COLORS = {
     "occupied": (212, 92, 121),
     "cooling": (56, 110, 190),
     "hot_empty": (210, 82, 47),
+    "not_occupied": (28, 132, 128),
 }
 
 NEUTRAL = {
@@ -72,8 +84,15 @@ def load_font(size, bold=False):
     return ImageFont.load_default()
 
 
-def read_dataset_rows(session_dirs):
+def label_for_task(source_label, task):
+    if task == "occupancy":
+        return OCCUPANCY_LABEL_MAP[source_label]
+    return source_label
+
+
+def read_dataset_rows(session_dirs, task="state"):
     rows = []
+    labels = TASK_LABELS[task]
     for session_dir in session_dirs:
         labels_path = session_dir / "labels.csv"
         if not labels_path.exists():
@@ -87,9 +106,12 @@ def read_dataset_rows(session_dirs):
                 raise ValueError(f"{labels_path} is missing columns: {', '.join(sorted(missing))}")
 
             for row in reader:
-                label = row["label"]
-                if label not in LABEL_ORDER:
-                    raise ValueError(f"Unknown label '{label}' in {labels_path}")
+                source_label = row["label"]
+                if source_label not in LABEL_ORDER:
+                    raise ValueError(f"Unknown label '{source_label}' in {labels_path}")
+                label = label_for_task(source_label, task)
+                if label not in labels:
+                    raise ValueError(f"Unknown mapped label '{label}' in {labels_path}")
 
                 frame_path = session_dir / row["filename"]
                 if not frame_path.exists():
@@ -100,13 +122,14 @@ def read_dataset_rows(session_dirs):
                         "session": session_dir.name,
                         "frame_index": int(row["frame_index"]),
                         "frame_path": frame_path,
+                        "source_label": source_label,
                         "label": label,
                     }
                 )
     return rows
 
 
-def load_frames(rows):
+def load_frames(rows, labels=LABEL_ORDER):
     x = np.empty((len(rows), INPUT_DIM), dtype=np.float32)
     y = np.empty(len(rows), dtype=np.int64)
 
@@ -115,24 +138,24 @@ def load_frames(rows):
         if frame.shape != (FRAME_HEIGHT, FRAME_WIDTH):
             raise ValueError(f"{row['frame_path']} has shape {frame.shape}, expected 60x80")
         x[idx] = raw_to_celsius(frame).reshape(-1)
-        y[idx] = LABEL_ORDER.index(row["label"])
+        y[idx] = labels.index(row["label"])
 
     return x, y
 
 
-def stratified_split(y, val_ratio, test_ratio, seed):
+def stratified_split(y, val_ratio, test_ratio, seed, labels=LABEL_ORDER):
     rng = np.random.default_rng(seed)
     train_indices = []
     val_indices = []
     test_indices = []
 
-    for label_id in range(len(LABEL_ORDER)):
+    for label_id in range(len(labels)):
         label_indices = np.where(y == label_id)[0]
         rng.shuffle(label_indices)
 
         n = len(label_indices)
         if n < 3:
-            raise ValueError(f"Not enough samples for label {LABEL_ORDER[label_id]}: {n}")
+            raise ValueError(f"Not enough samples for label {labels[label_id]}: {n}")
 
         n_test = max(1, int(round(n * test_ratio)))
         n_val = max(1, int(round(n * val_ratio)))
@@ -255,10 +278,10 @@ def confusion_matrix(y_true, y_pred, num_classes):
     return matrix
 
 
-def class_weights(y):
-    counts = np.bincount(y, minlength=len(LABEL_ORDER)).astype(np.float32)
+def class_weights(y, labels=LABEL_ORDER):
+    counts = np.bincount(y, minlength=len(labels)).astype(np.float32)
     total = counts.sum()
-    weights = total / (len(LABEL_ORDER) * np.maximum(counts, 1.0))
+    weights = total / (len(labels) * np.maximum(counts, 1.0))
     return weights.astype(np.float32)
 
 
@@ -272,23 +295,23 @@ def write_training_curves(path, history):
         writer.writerows(history)
 
 
-def write_confusion_csv(path, matrix):
+def write_confusion_csv(path, matrix, labels=LABEL_ORDER):
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
-        writer.writerow(["actual\\predicted"] + LABEL_ORDER)
-        for label, row in zip(LABEL_ORDER, matrix):
+        writer.writerow(["actual\\predicted"] + labels)
+        for label, row in zip(labels, matrix):
             writer.writerow([label] + [int(value) for value in row])
 
 
-def draw_confusion_matrix(path, matrix, title):
+def draw_confusion_matrix(path, matrix, title, labels=LABEL_ORDER):
     if Image is None:
         return False
 
     cell = 96
     left = 190
     top = 118
-    width = left + cell * len(LABEL_ORDER) + 60
-    height = top + cell * len(LABEL_ORDER) + 90
+    width = left + cell * len(labels) + 60
+    height = top + cell * len(labels) + 90
     image = Image.new("RGB", (width, height), NEUTRAL["background"])
     draw = ImageDraw.Draw(image)
     title_font = load_font(30, bold=True)
@@ -302,18 +325,18 @@ def draw_confusion_matrix(path, matrix, title):
     max_value = int(matrix.max()) if matrix.size else 1
     max_value = max(max_value, 1)
 
-    for col, label in enumerate(LABEL_ORDER):
+    for col, label in enumerate(labels):
         x = left + col * cell
         draw.text((x + 8, top - 34), label, fill=NEUTRAL["ink"], font=label_font)
 
-    for row, label in enumerate(LABEL_ORDER):
+    for row, label in enumerate(labels):
         y = top + row * cell
         color = LABEL_COLORS.get(label, (120, 120, 120))
         draw.rounded_rectangle((36, y + 28, 52, y + 68), radius=5, fill=color)
         draw.text((64, y + 36), label, fill=NEUTRAL["ink"], font=label_font)
 
         row_total = int(matrix[row].sum())
-        for col in range(len(LABEL_ORDER)):
+        for col in range(len(labels)):
             x = left + col * cell
             value = int(matrix[row, col])
             intensity = value / max_value
@@ -341,19 +364,20 @@ def draw_confusion_matrix(path, matrix, title):
 
 def train(args):
     session_dirs = [path.resolve() for path in args.sessions]
-    rows = read_dataset_rows(session_dirs)
+    labels = TASK_LABELS[args.task]
+    rows = read_dataset_rows(session_dirs, task=args.task)
     if not rows:
         raise ValueError("No labelled frames found.")
 
-    x, y = load_frames(rows)
-    train_idx, val_idx, test_idx = stratified_split(y, args.val_ratio, args.test_ratio, args.seed)
+    x, y = load_frames(rows, labels=labels)
+    train_idx, val_idx, test_idx = stratified_split(y, args.val_ratio, args.test_ratio, args.seed, labels=labels)
 
     train_x, val_x, test_x = x[train_idx], x[val_idx], x[test_idx]
     train_y, val_y, test_y = y[train_idx], y[val_idx], y[test_idx]
     train_x, val_x, test_x, mean, std = standardize(train_x, val_x, test_x)
 
-    model = init_model(INPUT_DIM, args.hidden, len(LABEL_ORDER), args.seed)
-    weights = class_weights(train_y)
+    model = init_model(INPUT_DIM, args.hidden, len(labels), args.seed)
+    weights = class_weights(train_y, labels=labels)
     rng = np.random.default_rng(args.seed)
     adam_state = {
         "t": 0,
@@ -421,7 +445,7 @@ def train(args):
     test_pred, test_probs = predict(model, test_x)
     test_acc = float(np.mean(test_pred == test_y))
     test_loss = unweighted_loss(model, test_x, test_y)
-    matrix = confusion_matrix(test_y, test_pred, len(LABEL_ORDER))
+    matrix = confusion_matrix(test_y, test_pred, len(labels))
 
     run_name = args.run_name or datetime.now().strftime("thermal_mlp_%Y%m%d_%H%M%S")
     output_dir = (args.output_dir / run_name).resolve()
@@ -435,27 +459,30 @@ def train(args):
         b2=model["b2"],
         mean=mean.astype(np.float32),
         std=std.astype(np.float32),
-        labels=np.array(LABEL_ORDER),
+        labels=np.array(labels),
+        task=np.array([args.task]),
         frame_height=np.array([FRAME_HEIGHT], dtype=np.int64),
         frame_width=np.array([FRAME_WIDTH], dtype=np.int64),
     )
 
     write_training_curves(output_dir / "training_curves.csv", history)
-    write_confusion_csv(output_dir / "confusion_matrix.csv", matrix)
-    draw_confusion_matrix(output_dir / "confusion_matrix.png", matrix, "Thermal MLP test confusion matrix")
+    write_confusion_csv(output_dir / "confusion_matrix.csv", matrix, labels=labels)
+    draw_confusion_matrix(output_dir / "confusion_matrix.png", matrix, "Thermal MLP test confusion matrix", labels=labels)
 
     split_counts = {
-        "train": Counter(LABEL_ORDER[idx] for idx in train_y),
-        "val": Counter(LABEL_ORDER[idx] for idx in val_y),
-        "test": Counter(LABEL_ORDER[idx] for idx in test_y),
+        "train": Counter(labels[idx] for idx in train_y),
+        "val": Counter(labels[idx] for idx in val_y),
+        "test": Counter(labels[idx] for idx in test_y),
     }
     overall_counts = Counter(row["label"] for row in rows)
+    source_counts = Counter(row["source_label"] for row in rows)
 
     metrics = {
         "model": "one_hidden_layer_mlp",
         "note": "Initial neural-network baseline; random frame-level split can overestimate performance for time-correlated video.",
+        "task": args.task,
         "sessions": [str(path) for path in session_dirs],
-        "labels": LABEL_ORDER,
+        "labels": labels,
         "frame_shape": [FRAME_HEIGHT, FRAME_WIDTH],
         "hidden_units": args.hidden,
         "epochs_requested": args.epochs,
@@ -464,10 +491,11 @@ def train(args):
         "best_val_loss": best_val_loss,
         "test_accuracy": test_acc,
         "test_loss": test_loss,
-        "class_weights": {label: float(weights[idx]) for idx, label in enumerate(LABEL_ORDER)},
-        "overall_counts": {label: int(overall_counts.get(label, 0)) for label in LABEL_ORDER},
+        "class_weights": {label: float(weights[idx]) for idx, label in enumerate(labels)},
+        "overall_counts": {label: int(overall_counts.get(label, 0)) for label in labels},
+        "source_label_counts": {label: int(source_counts.get(label, 0)) for label in LABEL_ORDER},
         "split_counts": {
-            split: {label: int(counter.get(label, 0)) for label in LABEL_ORDER}
+            split: {label: int(counter.get(label, 0)) for label in labels}
             for split, counter in split_counts.items()
         },
         "confusion_matrix": matrix.tolist(),
@@ -494,6 +522,12 @@ def parse_args():
     )
     parser.add_argument("--output-dir", type=Path, default=Path("models"), help="Model output directory.")
     parser.add_argument("--run-name", default=None, help="Optional model run folder name.")
+    parser.add_argument(
+        "--task",
+        choices=sorted(TASK_LABELS),
+        default="state",
+        help="Training target: state=4 classes, occupancy=binary occupied/not_occupied.",
+    )
     parser.add_argument("--hidden", type=int, default=64, help="Hidden units in the MLP.")
     parser.add_argument("--epochs", type=int, default=80, help="Maximum training epochs.")
     parser.add_argument("--batch-size", type=int, default=64, help="Mini-batch size.")

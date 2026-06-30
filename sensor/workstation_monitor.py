@@ -29,6 +29,8 @@ from thermal_roi_viewer import DEFAULT_ROIS, raw_to_celsius
 
 FRAME_WIDTH = 80
 FRAME_HEIGHT = 60
+INPUT_DIM = FRAME_WIDTH * FRAME_HEIGHT
+OCCUPANCY_MODEL_LABELS = ["not_occupied", "occupied"]
 
 OCCUPANCY_COLORS = {
     "FREE": (80, 210, 130),
@@ -43,6 +45,49 @@ SAFETY_COLORS = {
     SAFETY_COOLING: (255, 190, 80),
     SAFETY_UNATTENDED_HOT: (40, 40, 255),
 }
+
+
+def relu(x):
+    return np.maximum(x, 0.0)
+
+
+def softmax(logits):
+    shifted = logits - logits.max(axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    return exp / exp.sum(axis=1, keepdims=True)
+
+
+def load_occupancy_model(model_path):
+    data = np.load(model_path)
+    labels = [str(label) for label in data["labels"]]
+    if labels != OCCUPANCY_MODEL_LABELS:
+        raise ValueError(
+            f"{model_path} is not a binary occupancy model. "
+            f"Expected labels {OCCUPANCY_MODEL_LABELS}, got {labels}."
+        )
+
+    return {
+        "path": str(model_path),
+        "labels": labels,
+        "w1": data["w1"].astype(np.float32),
+        "b1": data["b1"].astype(np.float32),
+        "w2": data["w2"].astype(np.float32),
+        "b2": data["b2"].astype(np.float32),
+        "mean": data["mean"].astype(np.float32),
+        "std": data["std"].astype(np.float32),
+    }
+
+
+def predict_occupancy(model, temp_c):
+    x = temp_c.astype(np.float32).reshape(1, INPUT_DIM)
+    x = (x - model["mean"]) / model["std"]
+    hidden = relu(x @ model["w1"] + model["b1"])
+    logits = hidden @ model["w2"] + model["b2"]
+    probs = softmax(logits)[0]
+    occupied_index = model["labels"].index("occupied")
+    occupied_probability = float(probs[occupied_index])
+    predicted_label = model["labels"][int(np.argmax(probs))]
+    return predicted_label, occupied_probability
 
 
 def make_heatmap(frame, scale):
@@ -88,7 +133,7 @@ def put_panel_line(panel, text, row, color=(235, 235, 235), scale=0.54, thicknes
     )
 
 
-def make_status_panel(height, occupancy, safety, metrics, config):
+def make_status_panel(height, occupancy, safety, metrics, config, model_status):
     panel = np.full((height, 380, 3), (24, 27, 32), dtype=np.uint8)
     occupancy_color = OCCUPANCY_COLORS[occupancy.state]
     safety_color = SAFETY_COLORS[safety.state]
@@ -130,29 +175,45 @@ def make_status_panel(height, occupancy, safety, metrics, config):
         408,
         scale=0.47,
     )
-    put_panel_line(panel, f"Human detected: {'YES' if metrics.human_detected else 'NO'}", 434)
-    put_panel_line(panel, f"Tool P95: {metrics.tool_p95_c:.1f} C", 460)
+    put_panel_line(panel, f"ROI human: {'YES' if metrics.human_detected else 'NO'}", 434)
+    if model_status:
+        put_panel_line(
+            panel,
+            f"ML occupied: {model_status['occupied_probability'] * 100:.1f}%",
+            460,
+        )
+    else:
+        put_panel_line(panel, f"Tool P95: {metrics.tool_p95_c:.1f} C", 460)
 
     if height >= 520:
         cv2.line(panel, (18, 482), (360, 482), (70, 74, 82), 1)
+        if model_status:
+            put_panel_line(panel, f"Tool P95: {metrics.tool_p95_c:.1f} C", 510, (155, 160, 170), 0.45)
+            put_panel_line(panel, "Human source: deep learning", 536, (155, 160, 170), 0.45)
+        else:
+            put_panel_line(panel, "Human source: ROI rules", 510, (155, 160, 170), 0.45)
+            put_panel_line(panel, "Press q to quit", 536, (155, 160, 170), 0.45)
+
+    if height >= 580:
         put_panel_line(
             panel,
             f"Enter {config.occupied_confirm_seconds:.0f}s | Leave {config.leave_confirm_seconds:.0f}s",
-            510,
+            562,
             (155, 160, 170),
             0.45,
         )
-        put_panel_line(panel, "Press q to quit", 536, (155, 160, 170), 0.45)
+        put_panel_line(panel, "Press q to quit", 588, (155, 160, 170), 0.45)
 
     return panel
 
 
-def write_status_file(path, occupancy, safety, metrics):
+def write_status_file(path, occupancy, safety, metrics, model_status):
     payload = {
         "timestamp": datetime.now().isoformat(timespec="milliseconds"),
         "occupancy": asdict(occupancy),
         "safety": asdict(safety),
         "metrics": asdict(metrics),
+        "model": model_status,
     }
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -167,6 +228,18 @@ def parse_args():
     )
     parser.add_argument("--device", default="/dev/spidev0.0", help="Lepton SPI device.")
     parser.add_argument("--scale", type=int, default=8, help="Thermal preview scale factor.")
+    parser.add_argument(
+        "--occupancy-model",
+        type=Path,
+        default=None,
+        help="Optional binary occupancy model.npz. If omitted, human detection uses ROI rules.",
+    )
+    parser.add_argument(
+        "--model-threshold",
+        type=float,
+        default=0.5,
+        help="Occupied probability threshold when --occupancy-model is used.",
+    )
     parser.add_argument(
         "--status-file",
         type=Path,
@@ -219,6 +292,13 @@ def main():
     print("Starting workstation monitor.")
     print(f"Human ROI: {DEFAULT_ROIS['Human Area']}")
     print(f"Tool ROI: {DEFAULT_ROIS['Tool Area']}")
+    occupancy_model = None
+    if args.occupancy_model:
+        occupancy_model = load_occupancy_model(args.occupancy_model)
+        print(f"Occupancy model: {args.occupancy_model}")
+        print(f"Model threshold: {args.model_threshold:.2f}")
+    else:
+        print("Occupancy model: disabled; using ROI human detection.")
     print("Press q in the OpenCV window to quit.")
 
     with Lepton(args.device) as lepton:
@@ -234,7 +314,21 @@ def main():
                 tool_roi=DEFAULT_ROIS["Tool Area"],
                 config=config,
             )
-            occupancy = occupancy_machine.update(metrics.human_detected, now)
+            model_status = None
+            human_detected = metrics.human_detected
+            if occupancy_model:
+                predicted_label, occupied_probability = predict_occupancy(occupancy_model, temp_c)
+                human_detected = occupied_probability >= args.model_threshold
+                model_status = {
+                    "type": "binary_occupancy_mlp",
+                    "path": occupancy_model["path"],
+                    "predicted_label": predicted_label,
+                    "occupied_probability": occupied_probability,
+                    "threshold": args.model_threshold,
+                    "occupied": human_detected,
+                }
+
+            occupancy = occupancy_machine.update(human_detected, now)
             safety = safety_machine.update(
                 metrics.tool_hot_mean_c,
                 occupied=occupancy.state == OCCUPANCY_OCCUPIED,
@@ -256,16 +350,16 @@ def main():
                 args.scale,
                 OCCUPANCY_COLORS[occupancy.state],
             )
-            panel = make_status_panel(heatmap.shape[0], occupancy, safety, metrics, config)
+            panel = make_status_panel(heatmap.shape[0], occupancy, safety, metrics, config, model_status)
             display = np.hstack((heatmap, panel))
             cv2.imshow("Workstation Occupancy and Safety Monitor", display)
 
-            write_status_file(args.status_file, occupancy, safety, metrics)
+            write_status_file(args.status_file, occupancy, safety, metrics, model_status)
 
             if occupancy.changed or safety.changed:
                 print(
                     f"STATE occupancy={occupancy.state} safety={safety.state} "
-                    f"human={metrics.human_detected} tool={safety.tool_temperature_c:.1f}C"
+                    f"human={human_detected} tool={safety.tool_temperature_c:.1f}C"
                 )
 
             if now - last_log_time >= args.log_interval:
@@ -278,6 +372,7 @@ def main():
                     f"occupancy={occupancy.state} safety={safety.state} "
                     f"ambient={metrics.ambient_c:.1f}C "
                     f"human_component={metrics.human_component_pixels}px "
+                    f"human={human_detected} "
                     f"tool={safety.tool_temperature_c:.1f}C trend={trend}"
                 )
                 last_log_time = now

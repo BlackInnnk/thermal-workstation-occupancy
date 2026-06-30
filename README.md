@@ -115,17 +115,49 @@ sample_grid.png
 
 Use this before training to check label balance, temperature ranges, and whether the saved examples match the intended class labels.
 
-## Train First Neural-Network Baseline
+## Train Neural-Network Baselines
 
-The first training script uses a small NumPy MLP instead of Edge Impulse. This keeps the training process local, reproducible, and easy to explain in the dissertation. Edge Impulse can still be considered later for deployment, after the data pipeline and labels are validated.
+The training script uses a small NumPy MLP instead of Edge Impulse. This keeps the training process local, reproducible, and easy to explain in the dissertation. Edge Impulse can still be considered later for comparison or deployment experiments, after the data pipeline and labels are validated.
+
+The recommended model for the live system is binary occupancy detection:
 
 ```bash
 python3 sensor/train_thermal_mlp.py \
   data/raw/20260611_195455 \
-  data/raw/free_neighbor_person_01
+  data/raw/free_neighbor_person_01 \
+  data/raw/train_02 \
+  --task occupancy \
+  --run-name occupancy_mlp_train02_relabel
 ```
 
-The model is a one-hidden-layer neural network trained on the full 80x60 radiometric thermal frame. It outputs four classes:
+This model is trained on the full 80x60 radiometric thermal frame. It outputs two classes:
+
+```text
+not_occupied
+occupied
+```
+
+The original labels are mapped as follows:
+
+```text
+occupied -> occupied
+free, cooling, hot_empty -> not_occupied
+```
+
+This is the main deep-learning task because human occupancy is a spatial recognition problem. Residual heat states are handled by temporal ROI rules because `cooling`, `hot_empty`, and `free` can look similar in a single thermal frame.
+
+For comparison, the same script can still train the four-class state baseline:
+
+```bash
+python3 sensor/train_thermal_mlp.py \
+  data/raw/20260611_195455 \
+  data/raw/free_neighbor_person_01 \
+  data/raw/train_02 \
+  --task state \
+  --run-name mlp_train02_relabel
+```
+
+The four-class model outputs:
 
 ```text
 free
@@ -164,12 +196,26 @@ confusion_matrix.csv
 confusion_matrix.png
 ```
 
-## Run First Rule-Based Monitor
+## Run Hybrid Live Monitor
 
-The first monitor keeps occupancy and thermal safety as separate state machines:
+The monitor keeps human occupancy and thermal safety as separate state machines. With no model argument it uses ROI rules for human detection:
 
 ```bash
 sudo python3 sensor/workstation_monitor.py
+```
+
+For the final hybrid system, pass the binary occupancy model:
+
+```bash
+sudo python3 sensor/workstation_monitor.py \
+  --occupancy-model models/occupancy_mlp_train02_relabel/model.npz
+```
+
+In this mode:
+
+```text
+Deep learning: occupied / not_occupied
+Rule-based temporal logic: safe / monitoring / cooling / unattended hot
 ```
 
 Occupancy states:

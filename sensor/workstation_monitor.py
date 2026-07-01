@@ -267,6 +267,11 @@ def parse_args():
         default=30.0,
         help="Seconds between dashboard thermal preview image updates.",
     )
+    parser.add_argument(
+        "--no-window",
+        action="store_true",
+        help="Run without an OpenCV preview window. Useful for background dashboard service mode.",
+    )
     parser.add_argument("--human-delta", type=float, default=4.0)
     parser.add_argument("--human-floor", type=float, default=27.0)
     parser.add_argument("--human-component-fraction", type=float, default=0.025)
@@ -323,7 +328,10 @@ def main():
     else:
         print("Occupancy model: disabled; using ROI human detection.")
     print(f"Dashboard snapshot: {args.snapshot_file} every {args.snapshot_interval:.0f}s")
-    print("Press q in the OpenCV window to quit.")
+    if args.no_window:
+        print("Running without OpenCV preview window. Press Ctrl+C to quit.")
+    else:
+        print("Press q in the OpenCV window to quit.")
 
     with Lepton(args.device) as lepton:
         while True:
@@ -381,8 +389,6 @@ def main():
 
             panel = make_status_panel(heatmap.shape[0], occupancy, safety, metrics, config, model_status)
             display = np.hstack((heatmap, panel))
-            cv2.imshow("Workstation Occupancy and Safety Monitor", display)
-
             snapshot_status = {
                 "path": str(args.snapshot_file),
                 "url": "../data/runtime/thermal_view.jpg",
@@ -412,10 +418,13 @@ def main():
                 )
                 last_log_time = now
 
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+            if not args.no_window:
+                cv2.imshow("Workstation Occupancy and Safety Monitor", display)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
 
-    cv2.destroyAllWindows()
+    if not args.no_window:
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

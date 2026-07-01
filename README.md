@@ -263,14 +263,61 @@ data/runtime/thermal_view.jpg
 
 ## Run Live Dashboard
 
-Run the monitor first so `data/runtime/status.json` is updated:
+The easiest way to run the full Raspberry Pi system is:
+
+```bash
+cd ~/thermal-workstation-occupancy
+./scripts/start_system.sh
+```
+
+This starts both parts in the background:
+
+```text
+sensor/workstation_monitor.py
+python3 -m http.server 8000
+```
+
+Then open the dashboard:
+
+```text
+http://<raspberry-pi-ip>:8000/dashboard/
+```
+
+If using Tailscale:
+
+```text
+http://100.121.0.89:8000/dashboard/
+```
+
+To stop the system:
+
+```bash
+cd ~/thermal-workstation-occupancy
+./scripts/stop_system.sh
+```
+
+Logs are written to:
+
+```text
+data/runtime/logs/monitor.log
+data/runtime/logs/dashboard.log
+```
+
+To watch logs while the system is running:
+
+```bash
+tail -f data/runtime/logs/monitor.log
+```
+
+If you want to run the two parts manually instead, run the monitor first so `data/runtime/status.json` is updated:
 
 ```bash
 sudo python3 sensor/workstation_monitor.py \
   --occupancy-model models/occupancy_mlp_train02_relabel/model.npz \
   --occupied-confirm 3 \
   --leave-confirm 10 \
-  --snapshot-interval 30
+  --snapshot-interval 30 \
+  --no-window
 ```
 
 In a second terminal, serve the project root:
@@ -278,12 +325,6 @@ In a second terminal, serve the project root:
 ```bash
 cd ~/thermal-workstation-occupancy
 python3 -m http.server 8000
-```
-
-Open the dashboard from another device on the same network:
-
-```text
-http://<raspberry-pi-ip>:8000/dashboard/
 ```
 
 When `data/runtime/status.json` is available, the dashboard shows the live Raspberry Pi monitor state for the workstation. The thermal preview image is refreshed from `data/runtime/thermal_view.jpg` every 30 seconds. If the status file is unavailable, it falls back to the built-in demo simulation.

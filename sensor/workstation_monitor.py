@@ -207,13 +207,22 @@ def make_status_panel(height, occupancy, safety, metrics, config, model_status):
     return panel
 
 
-def write_status_file(path, occupancy, safety, metrics, model_status):
+def write_snapshot(path, image):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f"{path.stem}.tmp{path.suffix}")
+    if not cv2.imwrite(str(temporary_path), image):
+        raise RuntimeError(f"Failed to write thermal snapshot: {temporary_path}")
+    temporary_path.replace(path)
+
+
+def write_status_file(path, occupancy, safety, metrics, model_status, snapshot_status):
     payload = {
         "timestamp": datetime.now().isoformat(timespec="milliseconds"),
         "occupancy": asdict(occupancy),
         "safety": asdict(safety),
         "metrics": asdict(metrics),
         "model": model_status,
+        "snapshot": snapshot_status,
     }
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -245,6 +254,18 @@ def parse_args():
         type=Path,
         default=Path("data/runtime/status.json"),
         help="JSON file updated with current states and metrics.",
+    )
+    parser.add_argument(
+        "--snapshot-file",
+        type=Path,
+        default=Path("data/runtime/thermal_view.jpg"),
+        help="Thermal preview image written for the web dashboard.",
+    )
+    parser.add_argument(
+        "--snapshot-interval",
+        type=float,
+        default=30.0,
+        help="Seconds between dashboard thermal preview image updates.",
     )
     parser.add_argument("--human-delta", type=float, default=4.0)
     parser.add_argument("--human-floor", type=float, default=27.0)
@@ -288,6 +309,8 @@ def main():
     occupancy_machine = OccupancyStateMachine(config, now=start_time)
     safety_machine = SafetyStateMachine(config, now=start_time)
     last_log_time = 0.0
+    last_snapshot_time = 0.0
+    last_snapshot_timestamp = None
 
     print("Starting workstation monitor.")
     print(f"Human ROI: {DEFAULT_ROIS['Human Area']}")
@@ -299,6 +322,7 @@ def main():
         print(f"Model threshold: {args.model_threshold:.2f}")
     else:
         print("Occupancy model: disabled; using ROI human detection.")
+    print(f"Dashboard snapshot: {args.snapshot_file} every {args.snapshot_interval:.0f}s")
     print("Press q in the OpenCV window to quit.")
 
     with Lepton(args.device) as lepton:
@@ -350,11 +374,22 @@ def main():
                 args.scale,
                 OCCUPANCY_COLORS[occupancy.state],
             )
+            if now - last_snapshot_time >= args.snapshot_interval:
+                write_snapshot(args.snapshot_file, heatmap)
+                last_snapshot_time = now
+                last_snapshot_timestamp = datetime.now().isoformat(timespec="milliseconds")
+
             panel = make_status_panel(heatmap.shape[0], occupancy, safety, metrics, config, model_status)
             display = np.hstack((heatmap, panel))
             cv2.imshow("Workstation Occupancy and Safety Monitor", display)
 
-            write_status_file(args.status_file, occupancy, safety, metrics, model_status)
+            snapshot_status = {
+                "path": str(args.snapshot_file),
+                "url": "../data/runtime/thermal_view.jpg",
+                "updated_at": last_snapshot_timestamp,
+                "interval_seconds": args.snapshot_interval,
+            }
+            write_status_file(args.status_file, occupancy, safety, metrics, model_status, snapshot_status)
 
             if occupancy.changed or safety.changed:
                 print(

@@ -22,91 +22,56 @@
         </div>
       </header>
 
-      <section class="summary-grid" aria-label="Dashboard summary">
-        <article class="metric-block">
-          <span class="metric-label">Monitored benches</span>
-          <strong>2</strong>
-        </article>
-        <article class="metric-block">
-          <span class="metric-label">Occupied</span>
-          <strong id="occupiedCount">0</strong>
-        </article>
-        <article class="metric-block">
-          <span class="metric-label">Free</span>
-          <strong id="freeCount">0</strong>
-        </article>
-        <article class="metric-block">
-          <span class="metric-label">Detection mode</span>
-          <strong id="detectionMode">Demo</strong>
-        </article>
-      </section>
-
       <section class="workspace">
         <div class="status-column" aria-label="Workstation status">
-          <article class="bench-panel" id="bench-1-panel">
+          <article class="bench-panel workstation-overview" id="workstation-panel">
             <div class="bench-heading">
               <div>
-                <span class="bench-label">Welding Bench 1</span>
-                <h2 id="bench-1-status">--</h2>
+                <span class="bench-label">Current workstation state</span>
+                <h2 id="workstation-status">--</h2>
               </div>
-              <span class="status-indicator" id="bench-1-dot"></span>
+              <span class="status-indicator" id="workstation-dot"></span>
             </div>
             <div class="bench-details">
-              <span>Confidence <strong id="bench-1-confidence">--</strong></span>
-              <span>Peak <strong id="bench-1-peak">--</strong></span>
-              <span>Last change <strong id="bench-1-change">--</strong></span>
-              <span>Safety <strong id="bench-1-safety">--</strong></span>
+              <span>Confidence <strong id="workstation-confidence">--</strong></span>
+              <span>Tool temp <strong id="workstation-peak">--</strong></span>
+              <span>Last change <strong id="workstation-change">--</strong></span>
+              <span>Safety <strong id="workstation-safety">--</strong></span>
             </div>
-          </article>
-
-          <article class="bench-panel" id="bench-2-panel">
-            <div class="bench-heading">
+            <div class="state-context">
               <div>
-                <span class="bench-label">Welding Bench 2</span>
-                <h2 id="bench-2-status">--</h2>
+                <span>Detection mode</span>
+                <strong id="detectionMode">Demo</strong>
               </div>
-              <span class="status-indicator" id="bench-2-dot"></span>
+              <div>
+                <span>Thermal preview</span>
+                <strong id="snapshotStatus">Waiting</strong>
+              </div>
             </div>
-            <div class="bench-details">
-              <span>Confidence <strong id="bench-2-confidence">--</strong></span>
-              <span>Peak <strong id="bench-2-peak">--</strong></span>
-              <span>Last change <strong id="bench-2-change">--</strong></span>
-              <span>Safety <strong id="bench-2-safety">--</strong></span>
+            <div class="compact-history" aria-label="Recent occupancy">
+              <div class="compact-history-heading">
+                <span>Recent occupancy</span>
+                <span>Last 12 samples</span>
+              </div>
+              <div class="timeline" id="workstation-timeline"></div>
             </div>
           </article>
-
-          <div class="timeline-panel">
-            <div class="section-title-row">
-              <h2>Recent occupancy</h2>
-              <span>Last 12 samples</span>
-            </div>
-            <div class="timeline-row">
-              <span>Bench 1</span>
-              <div class="timeline" id="bench-1-timeline"></div>
-            </div>
-            <div class="timeline-row">
-              <span>Bench 2</span>
-              <div class="timeline" id="bench-2-timeline"></div>
-            </div>
-          </div>
         </div>
 
         <section class="thermal-area" aria-label="Thermal map">
           <div class="section-title-row">
             <div>
               <h2>Thermal ROI view</h2>
-              <p id="thermalCaption">Simulated 80x60 radiometric frame mapped to two workstation regions.</p>
+              <p id="thermalCaption">Simulated 80x60 radiometric frame for one monitored workstation.</p>
             </div>
             <span id="frameLabel">Frame 0000</span>
           </div>
 
           <div class="heatmap-frame">
             <canvas id="heatmapCanvas" width="800" height="520" aria-label="Simulated thermal heatmap"></canvas>
+            <img id="thermalSnapshot" alt="Live thermal preview from the Raspberry Pi monitor" />
             <div class="roi roi-one">
-              <span>Bench 1 ROI</span>
-            </div>
-            <div class="roi roi-two">
-              <span>Bench 2 ROI</span>
+              <span>Workstation ROI</span>
             </div>
           </div>
 
@@ -134,8 +99,7 @@
           </div>
           <div class="control-grid">
             <button id="toggleAuto" type="button">Pause auto</button>
-            <button id="toggleBench1" type="button">Toggle Bench 1</button>
-            <button id="toggleBench2" type="button">Toggle Bench 2</button>
+            <button id="toggleWorkstation" type="button">Toggle workstation</button>
             <button id="residualTest" type="button">Residual heat test</button>
           </div>
         </section>

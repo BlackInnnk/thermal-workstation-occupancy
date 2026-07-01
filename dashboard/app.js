@@ -1,54 +1,41 @@
-const benches = [
-  {
-    id: 1,
-    name: "Welding Bench 1",
-    occupied: true,
-    confidence: 88,
-    peak: 34.8,
-    safety: "IN_USE",
-    lastChanged: Date.now() - 1000 * 70,
-    history: [false, false, true, true, true, true, true, true, true, true, true, true],
-  },
-  {
-    id: 2,
-    name: "Welding Bench 2",
-    occupied: false,
-    confidence: 93,
-    peak: 27.4,
-    safety: "SAFE",
-    lastChanged: Date.now() - 1000 * 260,
-    history: [false, false, false, true, true, false, false, false, false, false, false, false],
-  },
-];
+const workstation = {
+  id: 1,
+  name: "Welding Workstation",
+  occupied: false,
+  displayStatus: "FREE",
+  confidence: 0,
+  peak: 27.4,
+  safety: "SAFE",
+  lastChanged: Date.now() - 1000 * 260,
+  history: [false, false, false, false, false, false, false, false, false, false, false, false],
+};
 
 let autoUpdate = true;
 let liveConnected = false;
 let lastLiveStatusAt = 0;
 let frameCount = 0;
 let residualModeUntil = 0;
-let eventLog = [
-  { time: Date.now() - 1000 * 70, message: "Bench 1 changed to Occupied" },
-  { time: Date.now() - 1000 * 260, message: "Bench 2 changed to Free" },
-];
+let lastSnapshotRefreshAt = 0;
+let thermalSnapshotUrl = "../data/runtime/thermal_view.jpg";
+let eventLog = [{ time: Date.now() - 1000 * 260, message: "Workstation initialised as Free" }];
 
 const canvas = document.getElementById("heatmapCanvas");
 const ctx = canvas.getContext("2d");
 
 const ids = {
   lastUpdated: document.getElementById("lastUpdated"),
-  occupiedCount: document.getElementById("occupiedCount"),
-  freeCount: document.getElementById("freeCount"),
   frameLabel: document.getElementById("frameLabel"),
   eventCount: document.getElementById("eventCount"),
   eventLog: document.getElementById("eventLog"),
   syncLabel: document.getElementById("syncLabel"),
   detectionMode: document.getElementById("detectionMode"),
+  snapshotStatus: document.getElementById("snapshotStatus"),
   thermalCaption: document.getElementById("thermalCaption"),
   simulationState: document.getElementById("simulationState"),
   toggleAuto: document.getElementById("toggleAuto"),
-  toggleBench1: document.getElementById("toggleBench1"),
-  toggleBench2: document.getElementById("toggleBench2"),
+  toggleWorkstation: document.getElementById("toggleWorkstation"),
   residualTest: document.getElementById("residualTest"),
+  thermalSnapshot: document.getElementById("thermalSnapshot"),
 };
 
 function formatTime(date) {
@@ -83,18 +70,20 @@ function isWarningSafety(safety) {
   return safety === "UNATTENDED_HOT" || safety === "MONITORING";
 }
 
-function setBenchStatus(index, occupied, source = "Manual") {
-  const bench = benches[index];
-  if (bench.occupied !== occupied) {
-    bench.occupied = occupied;
-    bench.lastChanged = Date.now();
-    bench.history.push(occupied);
-    bench.history = bench.history.slice(-12);
-    addEvent(`${source}: ${bench.name} changed to ${occupied ? "Occupied" : "Free"}`);
+function setWorkstationStatus(occupied, source = "Manual") {
+  const nextStatus = occupied ? "OCCUPIED" : "FREE";
+  if (workstation.occupied !== occupied || workstation.displayStatus !== nextStatus) {
+    workstation.occupied = occupied;
+    workstation.displayStatus = nextStatus;
+    workstation.lastChanged = Date.now();
+    workstation.history.push(occupied);
+    workstation.history = workstation.history.slice(-12);
+    addEvent(`${source}: ${workstation.name} changed to ${occupied ? "Occupied" : "Free"}`);
   }
-  bench.confidence = occupied ? randomInt(82, 96) : randomInt(88, 98);
-  bench.peak = occupied ? randomFloat(33.2, 36.8) : randomFloat(25.4, 28.7);
-  bench.safety = occupied ? "IN_USE" : "SAFE";
+
+  workstation.confidence = occupied ? randomInt(82, 96) : randomInt(88, 98);
+  workstation.peak = occupied ? randomFloat(33.2, 36.8) : randomFloat(25.4, 28.7);
+  workstation.safety = occupied ? "IN_USE" : "SAFE";
 }
 
 function randomInt(min, max) {
@@ -108,49 +97,50 @@ function randomFloat(min, max) {
 function maybeAutoUpdate() {
   if (!autoUpdate || liveConnected) return;
 
-  benches.forEach((bench, index) => {
-    if (Math.random() < 0.16) {
-      setBenchStatus(index, !bench.occupied, "Auto");
-    } else {
-      bench.history.push(bench.occupied);
-      bench.history = bench.history.slice(-12);
-      bench.confidence = bench.occupied ? randomInt(84, 96) : randomInt(89, 98);
-      bench.peak = bench.occupied ? randomFloat(33.0, 36.9) : randomFloat(25.2, 28.9);
-      bench.safety = bench.occupied ? "IN_USE" : "SAFE";
-    }
-  });
+  if (Math.random() < 0.16) {
+    setWorkstationStatus(!workstation.occupied, "Auto");
+  } else {
+    workstation.history.push(workstation.occupied);
+    workstation.history = workstation.history.slice(-12);
+    workstation.confidence = workstation.occupied ? randomInt(84, 96) : randomInt(89, 98);
+    workstation.peak = workstation.occupied ? randomFloat(33.0, 36.9) : randomFloat(25.2, 28.9);
+    workstation.safety = workstation.occupied ? "IN_USE" : "SAFE";
+  }
 }
 
 function applyLiveStatus(payload) {
-  const bench = benches[0];
   const occupancyState = payload?.occupancy?.state || "FREE";
   const safetyState = payload?.safety?.state || "SAFE";
   const occupied = occupancyState === "OCCUPIED";
-  const displayStatus = occupancyState === "RECENTLY_USED" ? "RECENTLY_USED" : occupancyState;
   const modelProbability = payload?.model?.occupied_probability;
   const toolTemperature = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
+  thermalSnapshotUrl = payload?.snapshot?.url || thermalSnapshotUrl;
 
   liveConnected = true;
   lastLiveStatusAt = Date.now();
 
-  if (bench.occupied !== occupied || bench.safety !== safetyState || bench.displayStatus !== displayStatus) {
+  if (
+    workstation.occupied !== occupied ||
+    workstation.safety !== safetyState ||
+    workstation.displayStatus !== occupancyState
+  ) {
     addEvent(
-      `Live: ${bench.name} ${titleCaseState(displayStatus)}, safety ${titleCaseState(safetyState)}`,
+      `Live: ${workstation.name} ${titleCaseState(occupancyState)}, safety ${titleCaseState(safetyState)}`,
     );
-    bench.lastChanged = Date.now();
+    workstation.lastChanged = Date.now();
   }
 
-  bench.occupied = occupied;
-  bench.displayStatus = displayStatus;
-  bench.confidence = Number.isFinite(modelProbability)
+  workstation.occupied = occupied;
+  workstation.displayStatus = occupancyState;
+  workstation.confidence = Number.isFinite(modelProbability)
     ? Math.round(modelProbability * 100)
     : occupied
       ? 100
       : 0;
-  bench.peak = Number.isFinite(toolTemperature) ? Number(toolTemperature) : bench.peak;
-  bench.safety = safetyState;
-  bench.history.push(occupied);
-  bench.history = bench.history.slice(-12);
+  workstation.peak = Number.isFinite(toolTemperature) ? Number(toolTemperature) : workstation.peak;
+  workstation.safety = safetyState;
+  workstation.history.push(occupied);
+  workstation.history = workstation.history.slice(-12);
 }
 
 async function pollLiveStatus() {
@@ -164,34 +154,47 @@ async function pollLiveStatus() {
   } catch {
     if (liveConnected && Date.now() - lastLiveStatusAt > 5000) {
       liveConnected = false;
+      ids.thermalSnapshot.classList.remove("is-visible");
       addEvent("Live status disconnected; dashboard returned to demo mode");
     }
   }
 }
 
-function renderBench(bench) {
-  const panel = document.getElementById(`bench-${bench.id}-panel`);
-  const dot = document.getElementById(`bench-${bench.id}-dot`);
-  const status = document.getElementById(`bench-${bench.id}-status`);
-  const confidence = document.getElementById(`bench-${bench.id}-confidence`);
-  const peak = document.getElementById(`bench-${bench.id}-peak`);
-  const change = document.getElementById(`bench-${bench.id}-change`);
+function refreshThermalSnapshot(force = false) {
+  if (!liveConnected) return;
+  const now = Date.now();
+  if (!force && now - lastSnapshotRefreshAt < 30000) return;
 
-  panel.classList.toggle("is-occupied", bench.occupied);
-  panel.classList.toggle("is-free", !bench.occupied);
-  panel.classList.toggle("is-warning", !bench.occupied && isWarningSafety(bench.safety));
-  dot.classList.toggle("is-occupied", bench.occupied);
-  dot.classList.toggle("is-free", !bench.occupied);
+  lastSnapshotRefreshAt = now;
+  ids.thermalSnapshot.src = `${thermalSnapshotUrl}?ts=${now}`;
+  ids.frameLabel.textContent = `Snapshot ${formatTime(new Date(now))}`;
+  ids.snapshotStatus.textContent = "Refreshing";
+}
 
-  status.textContent = titleCaseState(bench.displayStatus || (bench.occupied ? "OCCUPIED" : "FREE"));
-  confidence.textContent = `${bench.confidence}%`;
-  peak.textContent = `${bench.peak.toFixed(1)}C`;
-  change.textContent = timeAgo(bench.lastChanged);
-  document.getElementById(`bench-${bench.id}-safety`).textContent = titleCaseState(bench.safety);
+function renderWorkstation() {
+  const panel = document.getElementById("workstation-panel");
+  const dot = document.getElementById("workstation-dot");
+  const status = document.getElementById("workstation-status");
+  const confidence = document.getElementById("workstation-confidence");
+  const peak = document.getElementById("workstation-peak");
+  const change = document.getElementById("workstation-change");
+  const safety = document.getElementById("workstation-safety");
 
-  const timeline = document.getElementById(`bench-${bench.id}-timeline`);
+  panel.classList.toggle("is-occupied", workstation.occupied);
+  panel.classList.toggle("is-free", !workstation.occupied);
+  panel.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
+  dot.classList.toggle("is-occupied", workstation.occupied);
+  dot.classList.toggle("is-free", !workstation.occupied);
+
+  status.textContent = titleCaseState(workstation.displayStatus);
+  confidence.textContent = `${workstation.confidence}%`;
+  peak.textContent = `${workstation.peak.toFixed(1)}C`;
+  change.textContent = timeAgo(workstation.lastChanged);
+  safety.textContent = titleCaseState(workstation.safety);
+
+  const timeline = document.getElementById("workstation-timeline");
   timeline.innerHTML = "";
-  bench.history.forEach((sample) => {
+  workstation.history.forEach((sample) => {
     const segment = document.createElement("span");
     segment.className = sample ? "is-occupied" : "is-free";
     timeline.appendChild(segment);
@@ -239,7 +242,9 @@ function gaussian(x, y, cx, cy, sx, sy, strength) {
   return Math.exp(-(dx * dx + dy * dy) / 2) * strength;
 }
 
-function drawHeatmap() {
+function drawFallbackHeatmap() {
+  if (liveConnected && ids.thermalSnapshot.classList.contains("is-visible")) return;
+
   const lowWidth = 80;
   const lowHeight = 60;
   const cellW = canvas.width / lowWidth;
@@ -252,18 +257,14 @@ function drawHeatmap() {
     for (let x = 0; x < lowWidth; x += 1) {
       let value = 0.18 + Math.sin((x + frameCount) * 0.08) * 0.025 + Math.cos(y * 0.18) * 0.02;
 
-      if (benches[0].occupied) {
-        value += gaussian(x, y, 25 + Math.sin(frameCount * 0.07) * 2, 31, 7, 10, 0.72);
+      if (workstation.occupied) {
+        value += gaussian(x, y, 55 + Math.sin(frameCount * 0.07) * 2, 30, 7, 10, 0.72);
       }
-      if (!benches[0].occupied && isWarningSafety(benches[0].safety)) {
+      if (!workstation.occupied && isWarningSafety(workstation.safety)) {
         value += gaussian(x, y, 18, 40, 2, 2, 0.8);
       }
-      if (benches[1].occupied) {
-        value += gaussian(x, y, 57 + Math.cos(frameCount * 0.06) * 2, 30, 7, 10, 0.72);
-      }
-
       if (now < residualModeUntil) {
-        value += gaussian(x, y, 58, 40, 2, 2, 0.8);
+        value += gaussian(x, y, 18, 40, 2, 2, 0.8);
       }
 
       value += Math.random() * 0.025;
@@ -276,26 +277,35 @@ function drawHeatmap() {
 }
 
 function render() {
-  const occupied = benches.filter((bench) => bench.occupied).length;
-  ids.occupiedCount.textContent = occupied;
-  ids.freeCount.textContent = benches.length - occupied;
   ids.lastUpdated.textContent = formatTime(new Date());
-  ids.frameLabel.textContent = `Frame ${String(frameCount).padStart(4, "0")}`;
+  if (!liveConnected) ids.frameLabel.textContent = `Demo frame ${String(frameCount).padStart(4, "0")}`;
   ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Live simulation";
   ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo";
+  if (!liveConnected) ids.snapshotStatus.textContent = "Demo image";
   ids.thermalCaption.textContent = liveConnected
-    ? "Live workstation state from the Raspberry Pi monitor, with schematic thermal context."
-    : "Simulated 80x60 radiometric frame mapped to two workstation regions.";
+    ? "Thermal preview image exported from the Raspberry Pi monitor every 30 seconds."
+    : "Simulated 80x60 radiometric frame for dashboard demonstration.";
   ids.simulationState.textContent = liveConnected
     ? "Live data connected"
     : autoUpdate
       ? "Auto update on"
       : "Auto update paused";
 
-  benches.forEach(renderBench);
+  renderWorkstation();
   renderEventLog();
-  drawHeatmap();
+  refreshThermalSnapshot();
+  drawFallbackHeatmap();
 }
+
+ids.thermalSnapshot.addEventListener("load", () => {
+  ids.thermalSnapshot.classList.add("is-visible");
+  ids.snapshotStatus.textContent = "Live image";
+});
+
+ids.thermalSnapshot.addEventListener("error", () => {
+  ids.thermalSnapshot.classList.remove("is-visible");
+  ids.snapshotStatus.textContent = liveConnected ? "Image pending" : "Demo image";
+});
 
 ids.toggleAuto.addEventListener("click", () => {
   autoUpdate = !autoUpdate;
@@ -304,20 +314,16 @@ ids.toggleAuto.addEventListener("click", () => {
   render();
 });
 
-ids.toggleBench1.addEventListener("click", () => {
-  setBenchStatus(0, !benches[0].occupied);
-  render();
-});
-
-ids.toggleBench2.addEventListener("click", () => {
-  setBenchStatus(1, !benches[1].occupied);
+ids.toggleWorkstation.addEventListener("click", () => {
+  setWorkstationStatus(!workstation.occupied);
   render();
 });
 
 ids.residualTest.addEventListener("click", () => {
-  setBenchStatus(1, false, "Residual filter");
+  setWorkstationStatus(false, "Residual filter");
+  workstation.safety = "MONITORING";
   residualModeUntil = Date.now() + 7000;
-  addEvent("Residual heat detected in Bench 2 ROI; workstation remains Free");
+  addEvent("Residual heat detected in tool ROI; workstation remains not occupied");
   render();
 });
 
@@ -328,5 +334,6 @@ setInterval(() => {
 }, 1800);
 
 setInterval(pollLiveStatus, 1000);
+setInterval(() => refreshThermalSnapshot(true), 30000);
 pollLiveStatus();
 render();

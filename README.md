@@ -9,7 +9,7 @@ A thermal imaging based workstation occupancy detection prototype for welding be
 
 ## Current Status
 
-- Web dashboard prototype is implemented with simulated two-workstation data.
+- Web dashboard prototype supports one live workstation and falls back to simulated data when the Raspberry Pi status file is unavailable.
 - Lepton thermal camera capture has been tested with `pylepton`.
 - Sensor-side ROI viewing script is available under `sensor/`.
 
@@ -208,7 +208,9 @@ For the final hybrid system, pass the binary occupancy model:
 
 ```bash
 sudo python3 sensor/workstation_monitor.py \
-  --occupancy-model models/occupancy_mlp_train02_relabel/model.npz
+  --occupancy-model models/occupancy_mlp_train02_relabel/model.npz \
+  --occupied-confirm 3 \
+  --leave-confirm 10
 ```
 
 In this mode:
@@ -252,10 +254,11 @@ Unattended hot delay: 3 minutes
 
 These are initial engineering values, not final research results. They should be calibrated from the labelled dataset.
 
-The monitor also writes machine-readable status to:
+The monitor also writes machine-readable status and a dashboard thermal preview to:
 
 ```text
 data/runtime/status.json
+data/runtime/thermal_view.jpg
 ```
 
 ## Run Live Dashboard
@@ -266,7 +269,8 @@ Run the monitor first so `data/runtime/status.json` is updated:
 sudo python3 sensor/workstation_monitor.py \
   --occupancy-model models/occupancy_mlp_train02_relabel/model.npz \
   --occupied-confirm 3 \
-  --leave-confirm 10
+  --leave-confirm 10 \
+  --snapshot-interval 30
 ```
 
 In a second terminal, serve the project root:
@@ -282,7 +286,7 @@ Open the dashboard from another device on the same network:
 http://<raspberry-pi-ip>:8000/dashboard/
 ```
 
-When `data/runtime/status.json` is available, the dashboard shows the live Raspberry Pi monitor state for Welding Bench 1. If the file is unavailable, it falls back to the built-in demo simulation.
+When `data/runtime/status.json` is available, the dashboard shows the live Raspberry Pi monitor state for the workstation. The thermal preview image is refreshed from `data/runtime/thermal_view.jpg` every 30 seconds. If the status file is unavailable, it falls back to the built-in demo simulation.
 
 Useful tuning example:
 

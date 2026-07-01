@@ -230,6 +230,15 @@ h2 {
   background: var(--free);
 }
 
+.bench-panel.is-warning {
+  border-color: rgba(255, 179, 64, 0.42);
+  background: linear-gradient(135deg, rgba(255, 247, 232, 0.96), rgba(255, 255, 255, 0.76));
+}
+
+.bench-panel.is-warning::before {
+  background: var(--warning);
+}
+
 .bench-heading {
   display: flex;
   align-items: flex-start;
@@ -265,7 +274,7 @@ h2 {
 
 .bench-details {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin-top: 20px;
 }

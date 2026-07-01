@@ -258,6 +258,32 @@ The monitor also writes machine-readable status to:
 data/runtime/status.json
 ```
 
+## Run Live Dashboard
+
+Run the monitor first so `data/runtime/status.json` is updated:
+
+```bash
+sudo python3 sensor/workstation_monitor.py \
+  --occupancy-model models/occupancy_mlp_train02_relabel/model.npz \
+  --occupied-confirm 3 \
+  --leave-confirm 10
+```
+
+In a second terminal, serve the project root:
+
+```bash
+cd ~/thermal-workstation-occupancy
+python3 -m http.server 8000
+```
+
+Open the dashboard from another device on the same network:
+
+```text
+http://<raspberry-pi-ip>:8000/dashboard/
+```
+
+When `data/runtime/status.json` is available, the dashboard shows the live Raspberry Pi monitor state for Welding Bench 1. If the file is unavailable, it falls back to the built-in demo simulation.
+
 Useful tuning example:
 
 ```bash

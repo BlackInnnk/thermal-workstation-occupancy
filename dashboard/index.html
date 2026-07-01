@@ -16,7 +16,7 @@
         <div class="sync-panel" aria-live="polite">
           <span class="live-dot"></span>
           <div>
-            <span class="sync-label">Live simulation</span>
+            <span class="sync-label" id="syncLabel">Live simulation</span>
             <strong id="lastUpdated">--</strong>
           </div>
         </div>
@@ -37,7 +37,7 @@
         </article>
         <article class="metric-block">
           <span class="metric-label">Detection mode</span>
-          <strong>ROI + temporal</strong>
+          <strong id="detectionMode">Demo</strong>
         </article>
       </section>
 
@@ -55,6 +55,7 @@
               <span>Confidence <strong id="bench-1-confidence">--</strong></span>
               <span>Peak <strong id="bench-1-peak">--</strong></span>
               <span>Last change <strong id="bench-1-change">--</strong></span>
+              <span>Safety <strong id="bench-1-safety">--</strong></span>
             </div>
           </article>
 
@@ -70,6 +71,7 @@
               <span>Confidence <strong id="bench-2-confidence">--</strong></span>
               <span>Peak <strong id="bench-2-peak">--</strong></span>
               <span>Last change <strong id="bench-2-change">--</strong></span>
+              <span>Safety <strong id="bench-2-safety">--</strong></span>
             </div>
           </article>
 
@@ -93,7 +95,7 @@
           <div class="section-title-row">
             <div>
               <h2>Thermal ROI view</h2>
-              <p>Simulated 80x60 radiometric frame mapped to two workstation regions.</p>
+              <p id="thermalCaption">Simulated 80x60 radiometric frame mapped to two workstation regions.</p>
             </div>
             <span id="frameLabel">Frame 0000</span>
           </div>

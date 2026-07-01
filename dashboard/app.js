@@ -5,6 +5,7 @@ const benches = [
     occupied: true,
     confidence: 88,
     peak: 34.8,
+    safety: "IN_USE",
     lastChanged: Date.now() - 1000 * 70,
     history: [false, false, true, true, true, true, true, true, true, true, true, true],
   },
@@ -14,12 +15,15 @@ const benches = [
     occupied: false,
     confidence: 93,
     peak: 27.4,
+    safety: "SAFE",
     lastChanged: Date.now() - 1000 * 260,
     history: [false, false, false, true, true, false, false, false, false, false, false, false],
   },
 ];
 
 let autoUpdate = true;
+let liveConnected = false;
+let lastLiveStatusAt = 0;
 let frameCount = 0;
 let residualModeUntil = 0;
 let eventLog = [
@@ -37,6 +41,9 @@ const ids = {
   frameLabel: document.getElementById("frameLabel"),
   eventCount: document.getElementById("eventCount"),
   eventLog: document.getElementById("eventLog"),
+  syncLabel: document.getElementById("syncLabel"),
+  detectionMode: document.getElementById("detectionMode"),
+  thermalCaption: document.getElementById("thermalCaption"),
   simulationState: document.getElementById("simulationState"),
   toggleAuto: document.getElementById("toggleAuto"),
   toggleBench1: document.getElementById("toggleBench1"),
@@ -64,6 +71,18 @@ function addEvent(message) {
   eventLog = eventLog.slice(0, 8);
 }
 
+function titleCaseState(value) {
+  return String(value || "--")
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function isWarningSafety(safety) {
+  return safety === "UNATTENDED_HOT" || safety === "MONITORING";
+}
+
 function setBenchStatus(index, occupied, source = "Manual") {
   const bench = benches[index];
   if (bench.occupied !== occupied) {
@@ -75,6 +94,7 @@ function setBenchStatus(index, occupied, source = "Manual") {
   }
   bench.confidence = occupied ? randomInt(82, 96) : randomInt(88, 98);
   bench.peak = occupied ? randomFloat(33.2, 36.8) : randomFloat(25.4, 28.7);
+  bench.safety = occupied ? "IN_USE" : "SAFE";
 }
 
 function randomInt(min, max) {
@@ -86,7 +106,7 @@ function randomFloat(min, max) {
 }
 
 function maybeAutoUpdate() {
-  if (!autoUpdate) return;
+  if (!autoUpdate || liveConnected) return;
 
   benches.forEach((bench, index) => {
     if (Math.random() < 0.16) {
@@ -96,8 +116,57 @@ function maybeAutoUpdate() {
       bench.history = bench.history.slice(-12);
       bench.confidence = bench.occupied ? randomInt(84, 96) : randomInt(89, 98);
       bench.peak = bench.occupied ? randomFloat(33.0, 36.9) : randomFloat(25.2, 28.9);
+      bench.safety = bench.occupied ? "IN_USE" : "SAFE";
     }
   });
+}
+
+function applyLiveStatus(payload) {
+  const bench = benches[0];
+  const occupancyState = payload?.occupancy?.state || "FREE";
+  const safetyState = payload?.safety?.state || "SAFE";
+  const occupied = occupancyState === "OCCUPIED";
+  const displayStatus = occupancyState === "RECENTLY_USED" ? "RECENTLY_USED" : occupancyState;
+  const modelProbability = payload?.model?.occupied_probability;
+  const toolTemperature = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
+
+  liveConnected = true;
+  lastLiveStatusAt = Date.now();
+
+  if (bench.occupied !== occupied || bench.safety !== safetyState || bench.displayStatus !== displayStatus) {
+    addEvent(
+      `Live: ${bench.name} ${titleCaseState(displayStatus)}, safety ${titleCaseState(safetyState)}`,
+    );
+    bench.lastChanged = Date.now();
+  }
+
+  bench.occupied = occupied;
+  bench.displayStatus = displayStatus;
+  bench.confidence = Number.isFinite(modelProbability)
+    ? Math.round(modelProbability * 100)
+    : occupied
+      ? 100
+      : 0;
+  bench.peak = Number.isFinite(toolTemperature) ? Number(toolTemperature) : bench.peak;
+  bench.safety = safetyState;
+  bench.history.push(occupied);
+  bench.history = bench.history.slice(-12);
+}
+
+async function pollLiveStatus() {
+  try {
+    const response = await fetch(`../data/runtime/status.json?ts=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    applyLiveStatus(payload);
+  } catch {
+    if (liveConnected && Date.now() - lastLiveStatusAt > 5000) {
+      liveConnected = false;
+      addEvent("Live status disconnected; dashboard returned to demo mode");
+    }
+  }
 }
 
 function renderBench(bench) {
@@ -110,13 +179,15 @@ function renderBench(bench) {
 
   panel.classList.toggle("is-occupied", bench.occupied);
   panel.classList.toggle("is-free", !bench.occupied);
+  panel.classList.toggle("is-warning", !bench.occupied && isWarningSafety(bench.safety));
   dot.classList.toggle("is-occupied", bench.occupied);
   dot.classList.toggle("is-free", !bench.occupied);
 
-  status.textContent = bench.occupied ? "Occupied" : "Free";
+  status.textContent = titleCaseState(bench.displayStatus || (bench.occupied ? "OCCUPIED" : "FREE"));
   confidence.textContent = `${bench.confidence}%`;
   peak.textContent = `${bench.peak.toFixed(1)}C`;
   change.textContent = timeAgo(bench.lastChanged);
+  document.getElementById(`bench-${bench.id}-safety`).textContent = titleCaseState(bench.safety);
 
   const timeline = document.getElementById(`bench-${bench.id}-timeline`);
   timeline.innerHTML = "";
@@ -184,6 +255,9 @@ function drawHeatmap() {
       if (benches[0].occupied) {
         value += gaussian(x, y, 25 + Math.sin(frameCount * 0.07) * 2, 31, 7, 10, 0.72);
       }
+      if (!benches[0].occupied && isWarningSafety(benches[0].safety)) {
+        value += gaussian(x, y, 18, 40, 2, 2, 0.8);
+      }
       if (benches[1].occupied) {
         value += gaussian(x, y, 57 + Math.cos(frameCount * 0.06) * 2, 30, 7, 10, 0.72);
       }
@@ -207,7 +281,16 @@ function render() {
   ids.freeCount.textContent = benches.length - occupied;
   ids.lastUpdated.textContent = formatTime(new Date());
   ids.frameLabel.textContent = `Frame ${String(frameCount).padStart(4, "0")}`;
-  ids.simulationState.textContent = autoUpdate ? "Auto update on" : "Auto update paused";
+  ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Live simulation";
+  ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo";
+  ids.thermalCaption.textContent = liveConnected
+    ? "Live workstation state from the Raspberry Pi monitor, with schematic thermal context."
+    : "Simulated 80x60 radiometric frame mapped to two workstation regions.";
+  ids.simulationState.textContent = liveConnected
+    ? "Live data connected"
+    : autoUpdate
+      ? "Auto update on"
+      : "Auto update paused";
 
   benches.forEach(renderBench);
   renderEventLog();
@@ -217,7 +300,7 @@ function render() {
 ids.toggleAuto.addEventListener("click", () => {
   autoUpdate = !autoUpdate;
   ids.toggleAuto.textContent = autoUpdate ? "Pause auto" : "Resume auto";
-  addEvent(`Simulation ${autoUpdate ? "resumed" : "paused"}`);
+  addEvent(`${liveConnected ? "Fallback simulation" : "Simulation"} ${autoUpdate ? "resumed" : "paused"}`);
   render();
 });
 
@@ -244,4 +327,6 @@ setInterval(() => {
   render();
 }, 1800);
 
+setInterval(pollLiveStatus, 1000);
+pollLiveStatus();
 render();

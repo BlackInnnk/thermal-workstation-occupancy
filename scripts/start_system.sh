@@ -75,7 +75,7 @@ fi
 echo ""
 echo "System started."
 echo "Dashboard: http://<raspberry-pi-ip>:$DASHBOARD_PORT/dashboard/"
-echo "Tailscale:  http://100.121.0.89:$DASHBOARD_PORT/dashboard/"
+echo "Tailscale:  http://<tailscale-ip>:$DASHBOARD_PORT/dashboard/"
 echo ""
 echo "Logs:"
 echo "  $LOG_DIR/monitor.log"

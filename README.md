@@ -290,8 +290,10 @@ http://<raspberry-pi-ip>:8000/dashboard/
 If using Tailscale:
 
 ```text
-http://100.121.0.89:8000/dashboard/
+http://<tailscale-ip>:8000/dashboard/
 ```
+
+Replace `<tailscale-ip>` with the Raspberry Pi's Tailscale address.
 
 To stop the system:
 

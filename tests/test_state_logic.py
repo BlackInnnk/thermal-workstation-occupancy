@@ -14,6 +14,7 @@ from state_logic import (  # noqa: E402
     OCCUPANCY_OCCUPIED,
     OCCUPANCY_RECENTLY_USED,
     SAFETY_COOLING,
+    SAFETY_SAFE,
     SAFETY_UNATTENDED_HOT,
     OccupancyStateMachine,
     SafetyStateMachine,
@@ -83,6 +84,24 @@ class SafetyStateMachineTests(unittest.TestCase):
         machine.update(60.0, occupied=False, now=120)
         result = machine.update(60.0, occupied=False, now=180)
         self.assertEqual(result.state, SAFETY_UNATTENDED_HOT)
+
+    def test_recently_hot_tool_remains_cooling_until_safe_is_confirmed(self):
+        config = DetectionConfig(
+            trend_min_seconds=30,
+            safe_confirm_seconds=60,
+            tool_smoothing_samples=1,
+        )
+        machine = SafetyStateMachine(config, now=0)
+
+        machine.update(50.0, occupied=False, now=0)
+        result = machine.update(42.0, occupied=False, now=40)
+        self.assertEqual(result.state, SAFETY_COOLING)
+
+        result = machine.update(37.5, occupied=False, now=70)
+        self.assertEqual(result.state, SAFETY_COOLING)
+
+        result = machine.update(37.0, occupied=False, now=130)
+        self.assertEqual(result.state, SAFETY_SAFE)
 
 
 if __name__ == "__main__":

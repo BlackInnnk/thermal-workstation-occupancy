@@ -14,6 +14,13 @@ OCCUPIED_CONFIRM="${OCCUPIED_CONFIRM:-3}"
 LEAVE_CONFIRM="${LEAVE_CONFIRM:-10}"
 RECENTLY_USED_MINUTES="${RECENTLY_USED_MINUTES:-15}"
 SNAPSHOT_INTERVAL="${SNAPSHOT_INTERVAL:-30}"
+TOOL_SAFE="${TOOL_SAFE:-38}"
+TOOL_ALERT="${TOOL_ALERT:-45}"
+COOLING_SLOPE="${COOLING_SLOPE:--0.5}"
+COOLING_MIN_DROP="${COOLING_MIN_DROP:-2}"
+TREND_MIN_SECONDS="${TREND_MIN_SECONDS:-45}"
+UNATTENDED_DELAY_SECONDS="${UNATTENDED_DELAY_SECONDS:-180}"
+SAFE_CONFIRM_SECONDS="${SAFE_CONFIRM_SECONDS:-60}"
 
 MONITOR_PID_FILE="$PID_DIR/monitor.pid"
 DASHBOARD_PID_FILE="$PID_DIR/dashboard.pid"
@@ -42,6 +49,13 @@ else
     --leave-confirm "$LEAVE_CONFIRM" \
     --recently-used-minutes "$RECENTLY_USED_MINUTES" \
     --snapshot-interval "$SNAPSHOT_INTERVAL" \
+    --tool-safe "$TOOL_SAFE" \
+    --tool-alert "$TOOL_ALERT" \
+    --cooling-slope "$COOLING_SLOPE" \
+    --cooling-min-drop "$COOLING_MIN_DROP" \
+    --trend-min-seconds "$TREND_MIN_SECONDS" \
+    --unattended-delay-seconds "$UNATTENDED_DELAY_SECONDS" \
+    --safe-confirm-seconds "$SAFE_CONFIRM_SECONDS" \
     --no-window \
     > "$LOG_DIR/monitor.log" 2>&1 &
   echo "$!" > "$MONITOR_PID_FILE"

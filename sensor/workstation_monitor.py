@@ -282,9 +282,11 @@ def parse_args():
     parser.add_argument("--tool-safe", type=float, default=38.0)
     parser.add_argument("--tool-alert", type=float, default=45.0)
     parser.add_argument("--cooling-slope", type=float, default=-0.5)
+    parser.add_argument("--cooling-min-drop", type=float, default=2.0)
     parser.add_argument("--trend-min-seconds", type=float, default=45.0)
     parser.add_argument("--trend-window-seconds", type=float, default=180.0)
     parser.add_argument("--unattended-delay-seconds", type=float, default=180.0)
+    parser.add_argument("--safe-confirm-seconds", type=float, default=60.0)
     parser.add_argument("--log-interval", type=float, default=1.0)
     return parser.parse_args()
 
@@ -305,9 +307,11 @@ def main():
         tool_safe_c=args.tool_safe,
         tool_alert_c=args.tool_alert,
         cooling_slope_c_per_min=args.cooling_slope,
+        cooling_min_drop_c=args.cooling_min_drop,
         trend_min_seconds=args.trend_min_seconds,
         trend_window_seconds=args.trend_window_seconds,
         unattended_delay_seconds=args.unattended_delay_seconds,
+        safe_confirm_seconds=args.safe_confirm_seconds,
     )
 
     start_time = time.monotonic()

@@ -31,9 +31,11 @@ class DetectionConfig:
     tool_safe_c: float = 38.0
     tool_alert_c: float = 45.0
     cooling_slope_c_per_min: float = -0.5
+    cooling_min_drop_c: float = 2.0
     trend_min_seconds: float = 45.0
     trend_window_seconds: float = 180.0
     unattended_delay_seconds: float = 180.0
+    safe_confirm_seconds: float = 60.0
     tool_smoothing_samples: int = 5
 
 
@@ -219,6 +221,7 @@ class SafetyStateMachine:
         self.unoccupied_since = now
         self.history = deque()
         self.raw_samples = deque(maxlen=max(1, config.tool_smoothing_samples))
+        self.safe_below_since = now - config.safe_confirm_seconds
 
     def update(self, tool_temperature_c, occupied, now):
         previous_state = self.state
@@ -227,6 +230,7 @@ class SafetyStateMachine:
             self.history.clear()
             self.raw_samples.clear()
             self.unoccupied_since = None
+            self.safe_below_since = None
             self._set_state(SAFETY_IN_USE, now)
             return SafetyResult(
                 state=self.state,
@@ -247,19 +251,41 @@ class SafetyStateMachine:
         trend = self._calculate_trend()
         unoccupied_seconds = max(0.0, now - self.unoccupied_since)
         history_seconds = self.history[-1][0] - self.history[0][0] if len(self.history) >= 2 else 0.0
+        recent_peak_c = max(temperature for _, temperature in self.history)
+        drop_from_peak_c = recent_peak_c - smoothed_temperature
+        has_recent_hot_peak = recent_peak_c >= self.config.tool_alert_c
+        has_enough_history = history_seconds >= self.config.trend_min_seconds
 
         if smoothed_temperature < self.config.tool_safe_c:
-            self._set_state(SAFETY_SAFE, now)
-        elif (
+            if self.safe_below_since is None:
+                self.safe_below_since = now
+        else:
+            self.safe_below_since = None
+
+        safe_confirmed = (
+            self.safe_below_since is not None
+            and now - self.safe_below_since >= self.config.safe_confirm_seconds
+        )
+        cooling_by_trend = (
             trend is not None
-            and history_seconds >= self.config.trend_min_seconds
+            and has_enough_history
             and trend <= self.config.cooling_slope_c_per_min
-        ):
+        )
+        cooling_by_drop = (
+            has_recent_hot_peak
+            and has_enough_history
+            and drop_from_peak_c >= self.config.cooling_min_drop_c
+        )
+        cooling_after_recent_hot = has_recent_hot_peak and smoothed_temperature < self.config.tool_safe_c
+
+        if safe_confirmed:
+            self._set_state(SAFETY_SAFE, now)
+        elif cooling_by_trend or cooling_by_drop or cooling_after_recent_hot:
             self._set_state(SAFETY_COOLING, now)
         elif (
             smoothed_temperature >= self.config.tool_alert_c
             and unoccupied_seconds >= self.config.unattended_delay_seconds
-            and history_seconds >= self.config.trend_min_seconds
+            and has_enough_history
         ):
             self._set_state(SAFETY_UNATTENDED_HOT, now)
         else:

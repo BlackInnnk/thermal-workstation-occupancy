@@ -233,9 +233,9 @@ Safety states:
 | State | Meaning |
 |---|---|
 | `IN_USE` | The workstation is occupied |
-| `SAFE` | Tool-area temperature is below the safe threshold |
+| `SAFE` | Tool-area temperature has stayed below the safe threshold long enough to confirm it is safe |
 | `MONITORING` | The workstation is empty and warm; more trend data is needed |
-| `COOLING` | Tool-area temperature is decreasing |
+| `COOLING` | Tool-area temperature is decreasing, or has dropped from a recent hot peak but is not yet confirmed safe |
 | `UNATTENDED_HOT` | The workstation is empty and remains above the alert threshold without sufficient cooling |
 
 Default baseline parameters:
@@ -249,8 +249,12 @@ Recently used duration: 15 minutes
 Safe tool temperature: below 38 C
 Hot tool alert threshold: 45 C
 Cooling trend: at least -0.5 C/min
+Cooling drop from recent hot peak: at least 2 C
+Safe confirmation: below 38 C for 60 seconds
 Unattended hot delay: 3 minutes
 ```
+
+The safety state uses hysteresis: after a tool has been visibly hot, the system can remain in `COOLING` even when the measured temperature has just fallen below 38 C. It only becomes `SAFE` after the tool-area temperature has stayed below the safe threshold for the confirmation period.
 
 These are initial engineering values, not final research results. They should be calibrated from the labelled dataset.
 

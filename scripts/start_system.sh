@@ -66,7 +66,7 @@ if is_running "$DASHBOARD_PID_FILE"; then
   echo "Dashboard server already running with PID $(cat "$DASHBOARD_PID_FILE")"
 else
   echo "Starting dashboard server on port $DASHBOARD_PORT..."
-  nohup python3 -m http.server "$DASHBOARD_PORT" --bind 0.0.0.0 \
+  nohup python3 scripts/dashboard_server.py --host 0.0.0.0 --port "$DASHBOARD_PORT" \
     > "$LOG_DIR/dashboard.log" 2>&1 &
   echo "$!" > "$DASHBOARD_PID_FILE"
   echo "Dashboard PID: $(cat "$DASHBOARD_PID_FILE")"
@@ -76,6 +76,7 @@ echo ""
 echo "System started."
 echo "Dashboard: http://<raspberry-pi-ip>:$DASHBOARD_PORT/dashboard/"
 echo "Tailscale:  http://<tailscale-ip>:$DASHBOARD_PORT/dashboard/"
+echo "Public tunnel target: http://localhost:$DASHBOARD_PORT/dashboard/"
 echo ""
 echo "Logs:"
 echo "  $LOG_DIR/monitor.log"

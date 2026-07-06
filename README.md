@@ -278,7 +278,7 @@ This starts both parts in the background:
 
 ```text
 sensor/workstation_monitor.py
-python3 -m http.server 8000
+scripts/dashboard_server.py
 ```
 
 Then open the dashboard:
@@ -294,6 +294,22 @@ http://<tailscale-ip>:8000/dashboard/
 ```
 
 Replace `<tailscale-ip>` with the Raspberry Pi's Tailscale address.
+
+To make the real dashboard available outside the local network, expose the same local dashboard server through a tunnel. With Tailscale Funnel, visitors do not need Tailscale installed; they can open the public HTTPS Funnel URL. The tunnel target is:
+
+```text
+http://localhost:8000/dashboard/
+```
+
+The dashboard server intentionally serves only:
+
+```text
+/dashboard/
+/data/runtime/status.json
+/data/runtime/thermal_view.jpg
+```
+
+It does not expose the raw dataset directories.
 
 To stop the system:
 
@@ -326,11 +342,11 @@ sudo python3 sensor/workstation_monitor.py \
   --no-window
 ```
 
-In a second terminal, serve the project root:
+In a second terminal, serve the dashboard:
 
 ```bash
 cd ~/thermal-workstation-occupancy
-python3 -m http.server 8000
+python3 scripts/dashboard_server.py --host 0.0.0.0 --port 8000
 ```
 
 When `data/runtime/status.json` is available, the dashboard shows the live Raspberry Pi monitor state for the workstation. The thermal preview image is refreshed from `data/runtime/thermal_view.jpg` every 30 seconds. If the status file is unavailable, it falls back to the built-in demo simulation.

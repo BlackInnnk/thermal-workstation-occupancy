@@ -311,6 +311,26 @@ The dashboard server intentionally serves only:
 
 It does not expose the raw dataset directories.
 
+For the lab installation, the one-command public startup is:
+
+```bash
+cd ~/thermal-workstation-occupancy
+./scripts/start_public_system.sh
+```
+
+This starts the local monitor, the dashboard server, and Tailscale Funnel in the background. The public live dashboard URL is:
+
+```text
+https://pi-brian.tailbd4c97.ts.net/dashboard/
+```
+
+Stop the public tunnel and local system with:
+
+```bash
+cd ~/thermal-workstation-occupancy
+./scripts/stop_public_system.sh
+```
+
 To stop the system:
 
 ```bash

@@ -7,64 +7,51 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="ambient" aria-hidden="true">
+      <span class="blob blob-a"></span>
+      <span class="blob blob-b"></span>
+      <span class="blob blob-c"></span>
+    </div>
+
     <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Thermal occupancy prototype</p>
-          <h1>Welding workstation dashboard</h1>
+      <header class="navbar glass">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 2.5c.5 3.4-1.2 5-2.7 6.7C7.7 11 6 12.9 6 16a6 6 0 0 0 12 0c0-2.1-.8-3.7-1.9-5.2-.4 1-1 1.7-1.9 2.3.2-3.3-.6-7.6-2.2-10.6Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+          <div class="brand-copy">
+            <span class="brand-name">Hot Seat</span>
+            <span class="brand-sub">One Pool Street · Lab 107</span>
+          </div>
         </div>
+
         <div class="sync-panel" aria-live="polite">
           <span class="live-dot"></span>
-          <div>
-            <span class="sync-label" id="syncLabel">Live simulation</span>
+          <div class="sync-copy">
+            <span class="sync-label" id="syncLabel">Demo fallback</span>
             <strong id="lastUpdated">--</strong>
           </div>
         </div>
       </header>
 
-      <section class="workspace">
-        <div class="status-column" aria-label="Workstation status">
-          <article class="bench-panel workstation-overview" id="workstation-panel">
-            <div class="bench-heading">
-              <div>
-                <span class="bench-label">Current workstation state</span>
-                <h2 id="workstation-status">--</h2>
-              </div>
-              <span class="status-indicator" id="workstation-dot"></span>
-            </div>
-            <div class="bench-details">
-              <span>Confidence <strong id="workstation-confidence">--</strong></span>
-              <span>Tool temp <strong id="workstation-peak">--</strong></span>
-              <span>Last change <strong id="workstation-change">--</strong></span>
-              <span>Safety <strong id="workstation-safety">--</strong></span>
-            </div>
-            <div class="state-context">
-              <div>
-                <span>Detection mode</span>
-                <strong id="detectionMode">Demo</strong>
-              </div>
-              <div>
-                <span>Thermal preview</span>
-                <strong id="snapshotStatus">Waiting</strong>
-              </div>
-            </div>
-            <div class="compact-history" aria-label="Recent occupancy">
-              <div class="compact-history-heading">
-                <span>Recent occupancy</span>
-                <span>Last 12 samples</span>
-              </div>
-              <div class="timeline" id="workstation-timeline"></div>
-            </div>
-          </article>
-        </div>
+      <section class="hero">
+        <h1>Thermal workstation monitor</h1>
+        <p>Real-time occupancy and hot-tool safety, sensed from a radiometric thermal camera.</p>
+      </section>
 
-        <section class="thermal-area" aria-label="Thermal map">
+      <section class="workspace">
+        <section class="thermal-area glass" aria-label="Thermal map">
           <div class="section-title-row">
             <div>
-              <h2>Thermal ROI view</h2>
+              <h2>Live thermal field</h2>
               <p id="thermalCaption">Simulated 80x60 radiometric frame for one monitored workstation.</p>
             </div>
-            <span id="frameLabel">Frame 0000</span>
+            <span class="chip" id="frameLabel">Frame 0000</span>
           </div>
 
           <div class="heatmap-frame">
@@ -81,29 +68,93 @@
             <span>Hot</span>
           </div>
         </section>
+
+        <aside class="status-column" aria-label="Workstation status">
+          <article class="status-panel glass" id="workstation-panel">
+            <div class="status-heading">
+              <div>
+                <span class="panel-label">Current state</span>
+                <h2 id="workstation-status">--</h2>
+              </div>
+              <span class="status-indicator" id="workstation-dot"></span>
+            </div>
+
+            <div class="status-metrics">
+              <div class="metric-tile">
+                <span>Occupancy</span>
+                <strong id="workstation-confidence">--</strong>
+              </div>
+              <div class="metric-tile">
+                <span>Tool temp</span>
+                <strong id="workstation-peak">--</strong>
+              </div>
+              <div class="metric-tile">
+                <span>Last change</span>
+                <strong id="workstation-change">--</strong>
+              </div>
+              <div class="metric-tile">
+                <span>Safety</span>
+                <strong id="workstation-safety">--</strong>
+              </div>
+            </div>
+
+            <div class="state-context">
+              <div>
+                <span>Detection mode</span>
+                <strong id="detectionMode">Demo</strong>
+              </div>
+              <div>
+                <span>Thermal preview</span>
+                <strong id="snapshotStatus">Waiting</strong>
+              </div>
+            </div>
+
+            <div class="compact-history" aria-label="Recent occupancy">
+              <div class="compact-history-heading">
+                <span>Recent occupancy</span>
+                <span>Last 12 samples</span>
+              </div>
+              <div class="timeline" id="workstation-timeline"></div>
+            </div>
+          </article>
+        </aside>
       </section>
 
       <section class="bottom-grid">
-        <section class="activity-panel">
+        <section class="activity-panel glass">
           <div class="section-title-row">
             <h2>Event log</h2>
-            <span id="eventCount">0 events</span>
+            <span class="chip" id="eventCount">0 events</span>
           </div>
           <ul id="eventLog"></ul>
         </section>
 
-        <section class="control-panel">
+        <section class="system-panel glass">
           <div class="section-title-row">
-            <h2>Demo controls</h2>
-            <span id="simulationState">Auto update on</span>
+            <h2>Detection stack</h2>
+            <span class="chip" id="simulationState">Auto update on</span>
           </div>
-          <div class="control-grid">
-            <button id="toggleAuto" type="button">Pause auto</button>
-            <button id="toggleWorkstation" type="button">Toggle workstation</button>
-            <button id="residualTest" type="button">Residual heat test</button>
+          <div class="stack-list" aria-label="Detection stack">
+            <div>
+              <span>Human presence</span>
+              <strong>Binary ML occupancy model</strong>
+            </div>
+            <div>
+              <span>Hot tool state</span>
+              <strong>Temporal thermal rules</strong>
+            </div>
+            <div>
+              <span>Thermal preview</span>
+              <strong>Updated every 30 seconds</strong>
+            </div>
           </div>
         </section>
       </section>
+
+      <footer class="page-footer">
+        <span>Hot Seat · Thermal workstation occupancy</span>
+        <span>Raspberry Pi · FLIR Lepton radiometric sensing</span>
+      </footer>
     </main>
     <script src="app.js"></script>
   </body>

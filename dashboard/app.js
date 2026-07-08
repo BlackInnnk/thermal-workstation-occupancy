@@ -14,7 +14,6 @@ let autoUpdate = true;
 let liveConnected = false;
 let lastLiveStatusAt = 0;
 let frameCount = 0;
-let residualModeUntil = 0;
 let lastSnapshotRefreshAt = 0;
 let thermalSnapshotUrl = "../data/runtime/thermal_view.jpg";
 let eventLog = [{ time: Date.now() - 1000 * 260, message: "Workstation initialised as Free" }];
@@ -32,9 +31,6 @@ const ids = {
   snapshotStatus: document.getElementById("snapshotStatus"),
   thermalCaption: document.getElementById("thermalCaption"),
   simulationState: document.getElementById("simulationState"),
-  toggleAuto: document.getElementById("toggleAuto"),
-  toggleWorkstation: document.getElementById("toggleWorkstation"),
-  residualTest: document.getElementById("residualTest"),
   thermalSnapshot: document.getElementById("thermalSnapshot"),
 };
 
@@ -181,14 +177,17 @@ function renderWorkstation() {
   const safety = document.getElementById("workstation-safety");
 
   panel.classList.toggle("is-occupied", workstation.occupied);
-  panel.classList.toggle("is-free", !workstation.occupied);
+  panel.classList.toggle("is-free", workstation.displayStatus === "FREE");
+  panel.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
   panel.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
   dot.classList.toggle("is-occupied", workstation.occupied);
-  dot.classList.toggle("is-free", !workstation.occupied);
+  dot.classList.toggle("is-free", workstation.displayStatus === "FREE");
+  dot.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
+  dot.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
 
   status.textContent = titleCaseState(workstation.displayStatus);
   confidence.textContent = `${workstation.confidence}%`;
-  peak.textContent = `${workstation.peak.toFixed(1)}C`;
+  peak.textContent = `${workstation.peak.toFixed(1)}°C`;
   change.textContent = timeAgo(workstation.lastChanged);
   safety.textContent = titleCaseState(workstation.safety);
 
@@ -263,9 +262,6 @@ function drawFallbackHeatmap() {
       if (!workstation.occupied && isWarningSafety(workstation.safety)) {
         value += gaussian(x, y, 18, 40, 2, 2, 0.8);
       }
-      if (now < residualModeUntil) {
-        value += gaussian(x, y, 18, 40, 2, 2, 0.8);
-      }
 
       value += Math.random() * 0.025;
       value = Math.max(0, Math.min(1, value));
@@ -279,17 +275,17 @@ function drawFallbackHeatmap() {
 function render() {
   ids.lastUpdated.textContent = formatTime(new Date());
   if (!liveConnected) ids.frameLabel.textContent = `Demo frame ${String(frameCount).padStart(4, "0")}`;
-  ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Live simulation";
-  ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo";
+  ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Demo fallback";
+  ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo fallback";
   if (!liveConnected) ids.snapshotStatus.textContent = "Demo image";
   ids.thermalCaption.textContent = liveConnected
     ? "Thermal preview image exported from the Raspberry Pi monitor every 30 seconds."
     : "Simulated 80x60 radiometric frame for dashboard demonstration.";
   ids.simulationState.textContent = liveConnected
-    ? "Live data connected"
+    ? "Live sensor feed"
     : autoUpdate
-      ? "Auto update on"
-      : "Auto update paused";
+      ? "Demo fallback"
+      : "Demo paused";
 
   renderWorkstation();
   renderEventLog();
@@ -305,26 +301,6 @@ ids.thermalSnapshot.addEventListener("load", () => {
 ids.thermalSnapshot.addEventListener("error", () => {
   ids.thermalSnapshot.classList.remove("is-visible");
   ids.snapshotStatus.textContent = liveConnected ? "Image pending" : "Demo image";
-});
-
-ids.toggleAuto.addEventListener("click", () => {
-  autoUpdate = !autoUpdate;
-  ids.toggleAuto.textContent = autoUpdate ? "Pause auto" : "Resume auto";
-  addEvent(`${liveConnected ? "Fallback simulation" : "Simulation"} ${autoUpdate ? "resumed" : "paused"}`);
-  render();
-});
-
-ids.toggleWorkstation.addEventListener("click", () => {
-  setWorkstationStatus(!workstation.occupied);
-  render();
-});
-
-ids.residualTest.addEventListener("click", () => {
-  setWorkstationStatus(false, "Residual filter");
-  workstation.safety = "MONITORING";
-  residualModeUntil = Date.now() + 7000;
-  addEvent("Residual heat detected in tool ROI; workstation remains not occupied");
-  render();
 });
 
 setInterval(() => {

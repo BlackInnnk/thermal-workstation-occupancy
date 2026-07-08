@@ -2,10 +2,57 @@
 
 A thermal imaging based workstation occupancy detection prototype for welding benches.
 
+## Lab Device Quick Start
+
+Use this section for the installed lab device. If using Tailscale Funnel, the public dashboard URL has this shape:
+
+```text
+https://<tailscale-funnel-hostname>.ts.net/dashboard/
+```
+
+After the Raspberry Pi has restarted, SSH into it and start the full public system:
+
+```bash
+ssh brian@<tailscale-ip>
+cd ~/thermal-workstation-occupancy
+git pull
+./scripts/start_public_system.sh
+```
+
+This one command starts:
+
+```text
+Lepton monitor -> status.json + thermal_view.jpg
+Dashboard server -> http://127.0.0.1:8000/dashboard/
+Tailscale Funnel -> public HTTPS dashboard
+```
+
+Check whether everything is running:
+
+```bash
+./scripts/status_system.sh
+```
+
+Stop the public tunnel and local monitor:
+
+```bash
+./scripts/stop_public_system.sh
+```
+
+If you only need the dashboard on the local network or through your private Tailscale connection, use:
+
+```bash
+./scripts/start_system.sh
+./scripts/stop_system.sh
+```
+
+Important: the public live dashboard only works while the Raspberry Pi is powered, online, and the public system script is running. GitHub Pages is only a static/demo fallback; it does not receive live sensor data.
+
 ## Project Structure
 
 - `dashboard/` - Web dashboard prototype for displaying workstation occupancy status.
 - `sensor/` - Raspberry Pi and Lepton thermal camera scripts for frame capture, ROI analysis, and occupancy detection.
+- `scripts/` - Startup, shutdown, status, and dashboard server scripts for the Raspberry Pi deployment.
 
 ## Current Status
 
@@ -321,7 +368,7 @@ cd ~/thermal-workstation-occupancy
 This starts the local monitor, the dashboard server, and Tailscale Funnel in the background. The public live dashboard URL is:
 
 ```text
-https://pi-brian.tailbd4c97.ts.net/dashboard/
+https://<tailscale-funnel-hostname>.ts.net/dashboard/
 ```
 
 Stop the public tunnel and local system with:
@@ -329,6 +376,12 @@ Stop the public tunnel and local system with:
 ```bash
 cd ~/thermal-workstation-occupancy
 ./scripts/stop_public_system.sh
+```
+
+Check status at any time with:
+
+```bash
+./scripts/status_system.sh
 ```
 
 To stop the system:

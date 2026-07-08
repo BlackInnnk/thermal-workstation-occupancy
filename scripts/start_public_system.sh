@@ -9,7 +9,7 @@ PID_DIR="$RUNTIME_DIR/pids"
 LOG_DIR="$RUNTIME_DIR/logs"
 
 DASHBOARD_PORT="${DASHBOARD_PORT:-8000}"
-PUBLIC_DASHBOARD_URL="${PUBLIC_DASHBOARD_URL:-https://pi-brian.tailbd4c97.ts.net/dashboard/}"
+PUBLIC_DASHBOARD_URL="${PUBLIC_DASHBOARD_URL:-}"
 FUNNEL_PID_FILE="$PID_DIR/tailscale_funnel.pid"
 
 mkdir -p "$PID_DIR" "$LOG_DIR"
@@ -65,8 +65,13 @@ else
 fi
 
 echo ""
-echo "Public dashboard should be available at:"
-echo "  $PUBLIC_DASHBOARD_URL"
+echo "Public dashboard:"
+if [[ -n "$PUBLIC_DASHBOARD_URL" ]]; then
+  echo "  $PUBLIC_DASHBOARD_URL"
+else
+  echo "  Check the Funnel log below for the public https://...ts.net URL."
+  echo "  Add /dashboard/ to the root Funnel URL if needed."
+fi
 echo ""
 echo "Local dashboard:"
 echo "  http://127.0.0.1:$DASHBOARD_PORT/dashboard/"
@@ -78,3 +83,9 @@ echo "  $LOG_DIR/tailscale_funnel.log"
 echo ""
 echo "Stop everything with:"
 echo "  ./scripts/stop_public_system.sh"
+
+if [[ -f "$LOG_DIR/tailscale_funnel.log" ]]; then
+  echo ""
+  echo "Funnel log tail:"
+  tail -20 "$LOG_DIR/tailscale_funnel.log"
+fi

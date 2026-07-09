@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve the dashboard and only the live runtime files it needs."""
+"""Serve the landing page, dashboard, and only the live runtime files they need."""
 
 from __future__ import annotations
 
@@ -24,7 +24,11 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
 
-        if path in {"", "/"}:
+        if path in {"", "/", "/index.html"}:
+            landing_page = self.server.root_dir / "index.html"
+            if landing_page.is_file():
+                self._send_file(landing_page, "no-cache", send_body)
+                return
             self.send_response(HTTPStatus.FOUND)
             self.send_header("Location", "/dashboard/")
             self.end_headers()
@@ -44,6 +48,10 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             if relative == "":
                 relative = "index.html"
             file_path = self._safe_child(self.server.dashboard_dir, relative)
+        elif path.startswith("/assets/"):
+            relative = path.removeprefix("/assets/")
+            file_path = self._safe_child(self.server.assets_dir, relative)
+            cache_control = "public, max-age=3600"
         elif path == "/data/runtime/status.json":
             file_path = self.server.runtime_dir / "status.json"
             cache_control = "no-store"
@@ -86,6 +94,7 @@ class DashboardServer(ThreadingHTTPServer):
         super().__init__(server_address, handler_class)
         self.root_dir = root_dir.resolve()
         self.dashboard_dir = (self.root_dir / "dashboard").resolve()
+        self.assets_dir = (self.root_dir / "assets").resolve()
         self.runtime_dir = (self.root_dir / "data" / "runtime").resolve()
 
 

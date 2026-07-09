@@ -1,0 +1,1520 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hot Seat — A privacy-friendly thermal workstation monitor</title>
+    <meta
+      name="description"
+      content="Hot Seat senses welding-workstation occupancy and hot-tool safety with a low-resolution thermal camera — no RGB video, no faces, all on-device."
+    />
+    <style>
+      /* -----------------------------------------------------------------
+         Hot Seat landing page — iOS liquid-glass theme
+         ----------------------------------------------------------------- */
+
+      :root {
+        color-scheme: dark;
+
+        --page: #000;
+        --text: #f5f5f7;
+        --muted: #a1a1a6;
+        --soft: #6e6e73;
+
+        --glass: rgba(255, 255, 255, 0.045);
+        --glass-border: rgba(255, 255, 255, 0.13);
+        --glass-inner: rgba(255, 255, 255, 0.1);
+        --tile: rgba(255, 255, 255, 0.055);
+        --hairline: rgba(255, 255, 255, 0.1);
+
+        --blue: #0a84ff;
+        --green: #30d158;
+        --red: #ff453a;
+        --amber: #ff9f0a;
+
+        --shadow:
+          0 1px 1px rgba(0, 0, 0, 0.45),
+          0 20px 60px rgba(0, 0, 0, 0.5),
+          0 46px 120px rgba(0, 0, 0, 0.42);
+        --shadow-soft:
+          0 1px 1px rgba(0, 0, 0, 0.45),
+          0 14px 42px rgba(0, 0, 0, 0.45);
+
+        --radius-lg: 28px;
+        --radius-md: 20px;
+        --radius-sm: 14px;
+
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+          Inter, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(ellipse 80% 45% at 50% -12%, rgba(255, 130, 48, 0.18), transparent 68%),
+          radial-gradient(ellipse 55% 34% at 92% 108%, rgba(10, 132, 255, 0.11), transparent 72%),
+          linear-gradient(180deg, #050506 0%, #000 42%, #050506 100%);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* --- Ambient background ------------------------------------------ */
+
+      .ambient {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        overflow: hidden;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+        background-size: 42px 42px;
+        mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 70%, transparent);
+      }
+
+      .blob {
+        display: none;
+      }
+
+      @keyframes drift {
+        from {
+          transform: translate3d(0, 0, 0) scale(1);
+        }
+        to {
+          transform: translate3d(4vw, 3vh, 0) scale(1.08);
+        }
+      }
+
+      /* --- Glass primitive ---------------------------------------------- */
+
+      .glass {
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-lg);
+        background: var(--glass);
+        box-shadow:
+          inset 0 1px 0 var(--glass-inner),
+          var(--shadow);
+        backdrop-filter: blur(28px) saturate(1.7);
+        -webkit-backdrop-filter: blur(28px) saturate(1.7);
+      }
+
+      .shell {
+        width: min(1160px, calc(100% - 48px));
+        margin: 0 auto;
+      }
+
+      /* --- Navbar --------------------------------------------------------- */
+
+      .navbar-wrap {
+        position: sticky;
+        top: 16px;
+        z-index: 20;
+      }
+
+      .navbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 9px 10px 9px 16px;
+        border-radius: 999px;
+        box-shadow:
+          inset 0 1px 0 var(--glass-inner),
+          var(--shadow-soft);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        min-width: 0;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+        background: linear-gradient(160deg, #ff9f0a, #ff453a);
+        color: #fff;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.4),
+          0 6px 16px rgba(255, 90, 60, 0.35);
+      }
+
+      .brand-mark svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .brand-name {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .nav-links a {
+        padding: 7px 13px;
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.88rem;
+        font-weight: 550;
+        transition: background 180ms ease, color 180ms ease;
+      }
+
+      .nav-links a:hover {
+        background: var(--tile);
+        color: var(--text);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 18px;
+        border: 0;
+        border-radius: 999px;
+        font-size: 0.92rem;
+        font-weight: 650;
+        cursor: pointer;
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+      }
+
+      .btn-primary {
+        background: var(--blue);
+        color: #fff;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          0 8px 22px rgba(10, 132, 255, 0.38);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          0 12px 28px rgba(10, 132, 255, 0.45);
+      }
+
+      .btn-glass {
+        border: 1px solid var(--hairline);
+        background: var(--tile);
+        color: var(--text);
+        backdrop-filter: blur(20px) saturate(1.5);
+        -webkit-backdrop-filter: blur(20px) saturate(1.5);
+      }
+
+      .btn-glass:hover {
+        transform: translateY(-1px);
+      }
+
+      .btn-large {
+        padding: 13px 26px;
+        font-size: 1.02rem;
+      }
+
+      /* --- Hero ------------------------------------------------------------- */
+
+      .hero {
+        padding: 96px 0 40px;
+        text-align: center;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        padding: 6px 14px;
+        border: 1px solid var(--hairline);
+        border-radius: 999px;
+        background: var(--tile);
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+
+      .hero h1 {
+        margin: 26px auto 0;
+        font-size: clamp(4rem, 11vw, 9rem);
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+        background: linear-gradient(110deg, #f5f5f7 20%, #ffb54d 42%, #ff5f3a 55%, #f5f5f7 78%);
+        background-size: 220% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: heatText 9s ease-in-out infinite;
+      }
+
+      .hero-sub {
+        max-width: 620px;
+        margin: 22px auto 0;
+        color: var(--muted);
+        font-size: clamp(1.05rem, 2vw, 1.3rem);
+        line-height: 1.55;
+        font-weight: 480;
+      }
+
+      .hero-kicker {
+        max-width: 560px;
+        margin: 26px auto 0;
+        color: var(--muted);
+        font-size: clamp(1.1rem, 2.2vw, 1.45rem);
+        line-height: 1.5;
+        font-weight: 480;
+      }
+
+      .hero-cta {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 34px;
+        flex-wrap: wrap;
+      }
+
+      .hero-device {
+        position: relative;
+        max-width: 880px;
+        margin: 64px auto 0;
+        padding: 14px;
+        border-radius: 34px;
+      }
+
+      .hero-screen {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 22px;
+        background: #07090f;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.12),
+          inset 0 -40px 70px rgba(0, 0, 0, 0.28);
+        aspect-ratio: 16 / 9;
+      }
+
+      .hero-screen canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .hero-roi {
+        position: absolute;
+        top: 16%;
+        right: 12%;
+        width: 32%;
+        height: 62%;
+        border: 1.5px solid rgba(255, 255, 255, 0.85);
+        border-radius: 12px;
+        pointer-events: none;
+        box-shadow: 0 0 0 1px rgba(8, 12, 18, 0.3);
+      }
+
+      .hero-roi span {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 4px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 999px;
+        background: rgba(14, 18, 26, 0.62);
+        color: #fff;
+        font-size: 0.68rem;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+
+      .hero-screen-chip {
+        position: absolute;
+        left: 14px;
+        bottom: 12px;
+        padding: 5px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+        background: rgba(14, 18, 26, 0.55);
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.7rem;
+        font-weight: 600;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+
+      /* --- Sections ----------------------------------------------------------- */
+
+      section {
+        padding: 56px 0;
+      }
+
+      .section-head {
+        max-width: 640px;
+        margin: 0 auto 40px;
+        text-align: center;
+      }
+
+      .section-head h2 {
+        font-size: clamp(1.9rem, 4vw, 2.8rem);
+        font-weight: 750;
+        letter-spacing: -0.028em;
+        line-height: 1.1;
+      }
+
+      .section-head p {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 1.02rem;
+        line-height: 1.55;
+      }
+
+      /* --- Live status ----------------------------------------------------------- */
+
+      .live-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+        gap: 26px;
+        align-items: center;
+        padding: 26px;
+      }
+
+      .live-copy {
+        min-width: 0;
+      }
+
+      .live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        padding: 6px 14px 6px 11px;
+        border: 1px solid var(--hairline);
+        border-radius: 999px;
+        background: var(--tile);
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+      }
+
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--soft);
+        transition: background 220ms ease, box-shadow 220ms ease;
+      }
+
+      .live-dot.is-live {
+        background: var(--green);
+        box-shadow: 0 0 0 4px rgba(48, 209, 88, 0.18);
+        animation: pulse 1.9s ease-in-out infinite;
+      }
+
+      #liveState {
+        margin-top: 16px;
+        font-size: clamp(2.4rem, 5vw, 3.4rem);
+        font-weight: 760;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        transition: color 260ms ease;
+      }
+
+      #liveState.is-free {
+        color: var(--green);
+      }
+
+      #liveState.is-occupied {
+        color: var(--red);
+      }
+
+      #liveState.is-recent {
+        color: var(--blue);
+      }
+
+      #liveNote {
+        margin-top: 12px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.5;
+      }
+
+      .live-tiles {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 22px;
+      }
+
+      .live-tile {
+        min-width: 0;
+        padding: 11px 13px;
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-sm);
+        background: var(--tile);
+      }
+
+      .live-tile span {
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .live-tile strong {
+        display: block;
+        margin-top: 3px;
+        font-size: 1.02rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+      }
+
+      .live-actions {
+        margin-top: 22px;
+      }
+
+      .live-visual {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: var(--radius-md);
+        background: #07090f;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        aspect-ratio: 4 / 3;
+      }
+
+      .live-visual img {
+        position: absolute;
+        inset: 0;
+        display: none;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      .live-visual img.is-visible {
+        display: block;
+      }
+
+      .live-visual .placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.86rem;
+        font-weight: 550;
+        text-align: center;
+        padding: 20px;
+      }
+
+      /* --- How it works ------------------------------------------------------------ */
+
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .feature {
+        padding: 26px;
+      }
+
+      .feature-icon {
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 14px;
+        color: #fff;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      }
+
+      .feature-icon svg {
+        width: 23px;
+        height: 23px;
+      }
+
+      .icon-red {
+        background: linear-gradient(160deg, #ff9f0a, #ff453a);
+      }
+
+      .icon-blue {
+        background: linear-gradient(160deg, #64b5ff, #0a84ff);
+      }
+
+      .icon-purple {
+        background: linear-gradient(160deg, #c17cff, #7d4dff);
+      }
+
+      .icon-green {
+        background: linear-gradient(160deg, #6ee78d, #28b34c);
+      }
+
+      .feature h3 {
+        margin-top: 18px;
+        font-size: 1.22rem;
+        font-weight: 720;
+        letter-spacing: -0.02em;
+      }
+
+      .feature p {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+
+      /* --- Pipeline ------------------------------------------------------------------- */
+
+      .pipeline {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 38px;
+      }
+
+      .pipeline .step {
+        padding: 9px 16px;
+        border: 1px solid var(--hairline);
+        border-radius: 999px;
+        background: var(--tile);
+        font-size: 0.86rem;
+        font-weight: 640;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        white-space: nowrap;
+      }
+
+      .pipeline .arrow {
+        color: var(--soft);
+        font-size: 0.9rem;
+      }
+
+      /* --- Hardware ------------------------------------------------------------------ */
+
+      .hardware-showcase {
+        display: grid;
+        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        gap: 60px;
+        align-items: center;
+      }
+
+      .hardware-copy h2 {
+        margin-top: 16px;
+        font-size: clamp(2.4rem, 5vw, 4rem);
+        font-weight: 780;
+        letter-spacing: -0.04em;
+        line-height: 1.05;
+      }
+
+      .hardware-copy p {
+        margin-top: 20px;
+        max-width: 470px;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+
+      .hardware-stats {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        max-width: 470px;
+        margin-top: 34px;
+      }
+
+      .hardware-stat {
+        min-width: 0;
+        padding: 16px 14px;
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-sm);
+        background: var(--tile);
+      }
+
+      .hardware-stat strong {
+        display: block;
+        font-size: 1.35rem;
+        font-weight: 760;
+        letter-spacing: -0.02em;
+      }
+
+      .hardware-stat span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.35;
+      }
+
+      .device-photo {
+        position: relative;
+        overflow: hidden;
+        border-radius: 34px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass);
+        box-shadow:
+          inset 0 1px 0 var(--glass-inner),
+          0 50px 140px rgba(0, 0, 0, 0.7);
+      }
+
+      .device-photo img {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 4.6;
+        object-fit: cover;
+      }
+
+      .device-photo::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, transparent 52%, rgba(0, 0, 0, 0.48));
+        pointer-events: none;
+      }
+
+      .device-caption {
+        position: absolute;
+        left: 18px;
+        bottom: 16px;
+        z-index: 1;
+        padding: 6px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 999px;
+        background: rgba(10, 12, 18, 0.62);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.74rem;
+        font-weight: 600;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+
+      /* --- Deployment ------------------------------------------------------------------ */
+
+      .deploy-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .deploy-card {
+        padding: 28px;
+      }
+
+      .deploy-tag {
+        display: inline-block;
+        padding: 5px 12px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .tag-blue {
+        background: color-mix(in srgb, var(--blue) 14%, transparent);
+        color: var(--blue);
+      }
+
+      .tag-amber {
+        background: color-mix(in srgb, var(--amber) 16%, transparent);
+        color: color-mix(in srgb, var(--amber) 80%, var(--text));
+      }
+
+      .deploy-card h3 {
+        margin-top: 16px;
+        font-size: 1.35rem;
+        font-weight: 730;
+        letter-spacing: -0.02em;
+      }
+
+      .deploy-card p {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      /* --- Privacy ------------------------------------------------------------------------ */
+
+      .privacy-band {
+        padding: 52px 32px;
+        text-align: center;
+      }
+
+      .privacy-band h2 {
+        font-size: clamp(2rem, 4.6vw, 3.1rem);
+        font-weight: 770;
+        letter-spacing: -0.03em;
+        line-height: 1.08;
+      }
+
+      .privacy-band > p {
+        max-width: 560px;
+        margin: 16px auto 0;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.55;
+      }
+
+      .privacy-points {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        max-width: 880px;
+        margin: 36px auto 0;
+      }
+
+      .privacy-point {
+        padding: 18px 14px;
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-md);
+        background: var(--tile);
+      }
+
+      .privacy-point .check {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        margin: 0 auto;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--green) 16%, transparent);
+        color: var(--green);
+      }
+
+      .privacy-point .check svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      .privacy-point strong {
+        display: block;
+        margin-top: 12px;
+        font-size: 0.94rem;
+        font-weight: 680;
+        letter-spacing: -0.01em;
+      }
+
+      .privacy-point span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        line-height: 1.45;
+      }
+
+      /* --- Final CTA --------------------------------------------------------------------- */
+
+      .cta-final {
+        padding: 90px 0 70px;
+        text-align: center;
+      }
+
+      .cta-final h2 {
+        font-size: clamp(2.4rem, 6vw, 4rem);
+        font-weight: 780;
+        letter-spacing: -0.033em;
+        line-height: 1.05;
+        background: linear-gradient(180deg, var(--text) 50%, color-mix(in srgb, var(--text) 45%, transparent));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .cta-final p {
+        margin: 16px auto 0;
+        max-width: 480px;
+        color: var(--muted);
+        font-size: 1.02rem;
+        line-height: 1.55;
+      }
+
+      .cta-final .btn {
+        margin-top: 30px;
+      }
+
+      /* --- Footer ------------------------------------------------------------------------- */
+
+      .page-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 8px 36px;
+        color: var(--soft);
+        font-size: 0.78rem;
+      }
+
+      /* --- Reveal animation ------------------------------------------------------------------ */
+
+      .reveal {
+        opacity: 0;
+        transform: translateY(26px);
+        transition: opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+          transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .reveal.is-in {
+        opacity: 1;
+        transform: none;
+      }
+
+      .reveal-delay-1 {
+        transition-delay: 90ms;
+      }
+
+      .reveal-delay-2 {
+        transition-delay: 180ms;
+      }
+
+      .reveal-delay-3 {
+        transition-delay: 270ms;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(0.82);
+          opacity: 0.7;
+        }
+      }
+
+      @keyframes heatText {
+        0%,
+        100% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        .blob,
+        .live-dot.is-live {
+          animation: none;
+        }
+
+        .reveal {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+      }
+
+      /* --- Responsive ---------------------------------------------------------------------- */
+
+      @media (max-width: 900px) {
+        .live-card,
+        .feature-grid,
+        .hardware-showcase,
+        .deploy-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .privacy-points {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .nav-links {
+          display: none;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .shell {
+          width: calc(100% - 28px);
+        }
+
+        .hero {
+          padding-top: 72px;
+        }
+
+        .live-tiles {
+          grid-template-columns: 1fr;
+        }
+
+        .hardware-stats {
+          grid-template-columns: 1fr;
+        }
+
+        .privacy-points {
+          grid-template-columns: 1fr;
+        }
+
+        .page-footer {
+          flex-direction: column;
+          gap: 6px;
+          align-items: center;
+          text-align: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true">
+      <span class="blob blob-a"></span>
+      <span class="blob blob-b"></span>
+      <span class="blob blob-c"></span>
+    </div>
+
+    <div class="shell navbar-wrap">
+      <header class="navbar glass">
+        <a class="brand" href="#top" aria-label="Hot Seat home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 2.5c.5 3.4-1.2 5-2.7 6.7C7.7 11 6 12.9 6 16a6 6 0 0 0 12 0c0-2.1-.8-3.7-1.9-5.2-.4 1-1 1.7-1.9 2.3.2-3.3-.6-7.6-2.2-10.6Z"
+                fill="currentColor"
+              />
+            </svg>
+          </span>
+          <span class="brand-name">Hot Seat</span>
+        </a>
+
+        <nav class="nav-links" aria-label="Sections">
+          <a href="#live">Live status</a>
+          <a href="#how">How it works</a>
+          <a href="#hardware">Hardware</a>
+          <a href="#privacy">Privacy</a>
+        </nav>
+
+        <a class="btn btn-primary" href="dashboard/">Open Dashboard</a>
+      </header>
+    </div>
+
+    <main id="top">
+      <section class="hero shell">
+        <span class="eyebrow reveal is-in">Thermal workstation occupancy · UCL East, Lab 107</span>
+        <h1 class="reveal is-in">Hot Seat</h1>
+        <p class="hero-kicker reveal is-in reveal-delay-1">
+          It knows the bench is taken.<br />
+          It knows the tool is still hot.<br />
+          It never sees your face.
+        </p>
+        <div class="hero-cta reveal is-in reveal-delay-2">
+          <a class="btn btn-primary btn-large" href="dashboard/">Open Live Dashboard</a>
+          <a class="btn btn-glass btn-large" href="#how">How it works</a>
+        </div>
+
+        <div class="hero-device glass reveal is-in reveal-delay-3">
+          <div class="hero-screen">
+            <canvas id="heroCanvas" width="800" height="450" aria-label="Simulated thermal frame"></canvas>
+            <div class="hero-roi" aria-hidden="true"><span>Workstation ROI</span></div>
+            <span class="hero-screen-chip">Simulated 80×60 radiometric frame</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="live" class="shell">
+        <div class="section-head reveal">
+          <h2>Right now, in the lab.</h2>
+          <p>
+            The landing page reads the same live status file as the dashboard —
+            straight from the Raspberry Pi above the bench.
+          </p>
+        </div>
+
+        <div class="live-card glass reveal">
+          <div class="live-copy">
+            <span class="live-pill">
+              <span class="live-dot" id="liveDot"></span>
+              <span id="livePill">Connecting…</span>
+            </span>
+            <h3 id="liveState">--</h3>
+            <p id="liveNote">Checking the sensor feed…</p>
+
+            <div class="live-tiles">
+              <div class="live-tile">
+                <span>Safety</span>
+                <strong id="liveSafety">--</strong>
+              </div>
+              <div class="live-tile">
+                <span>Tool temp</span>
+                <strong id="liveTemp">--</strong>
+              </div>
+              <div class="live-tile">
+                <span>Updated</span>
+                <strong id="liveUpdated">--</strong>
+              </div>
+            </div>
+
+            <div class="live-actions">
+              <a class="btn btn-glass" href="dashboard/">Full dashboard →</a>
+            </div>
+          </div>
+
+          <div class="live-visual">
+            <span class="placeholder" id="livePlaceholder">Live thermal preview appears here<br />when the sensor is online</span>
+            <img id="liveSnapshot" alt="Live thermal preview from the lab" />
+          </div>
+        </div>
+      </section>
+
+      <section id="how" class="shell">
+        <div class="section-head reveal">
+          <h2>Heat in. Insight out.</h2>
+          <p>
+            Four small pieces work together on the edge — nothing leaves the room
+            except a status file and a low-resolution preview.
+          </p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature glass reveal">
+            <span class="feature-icon icon-red" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="6" width="18" height="12" rx="3" stroke="currentColor" stroke-width="1.8" />
+                <circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8" />
+              </svg>
+            </span>
+            <h3>Sees heat, not people.</h3>
+            <p>
+              A FLIR Lepton radiometric camera captures an 80×60 thermal frame —
+              detailed enough to sense presence and hot tools, far too coarse to
+              identify anyone.
+            </p>
+          </article>
+
+          <article class="feature glass reveal reveal-delay-1">
+            <span class="feature-icon icon-blue" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8" />
+                <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+              </svg>
+            </span>
+            <h3>Thinks at the edge.</h3>
+            <p>
+              Every frame is processed locally on a Raspberry Pi. No cloud
+              inference, no video stream — the room's data stays in the room.
+            </p>
+          </article>
+
+          <article class="feature glass reveal reveal-delay-1">
+            <span class="feature-icon icon-purple" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="5" cy="12" r="2" fill="currentColor" />
+                <circle cx="12" cy="5.5" r="2" fill="currentColor" />
+                <circle cx="12" cy="18.5" r="2" fill="currentColor" />
+                <circle cx="19" cy="12" r="2" fill="currentColor" />
+                <path d="M6.8 11 10.3 6.6M6.8 13l3.5 4.4M13.7 6.6 17.2 11M13.7 17.4l3.5-4.4" stroke="currentColor" stroke-width="1.6" />
+              </svg>
+            </span>
+            <h3>Learns occupancy.</h3>
+            <p>
+              A compact neural network, trained on labelled lab recordings,
+              classifies each frame as occupied or free in real time.
+            </p>
+          </article>
+
+          <article class="feature glass reveal reveal-delay-2">
+            <span class="feature-icon icon-green" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3 4.5 6.5v5c0 4.6 3.2 7.9 7.5 9.5 4.3-1.6 7.5-4.9 7.5-9.5v-5L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                <path d="m9 12 2.2 2.2L15.5 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <h3>Watches the heat.</h3>
+            <p>
+              Rule-based temporal logic tracks the tool area over time —
+              safe, monitoring, cooling, or unattended-hot — with hysteresis so a
+              hot tool is never called safe too early.
+            </p>
+          </article>
+        </div>
+
+        <div class="pipeline reveal" aria-label="Processing pipeline">
+          <span class="step">FLIR Lepton</span>
+          <span class="arrow">→</span>
+          <span class="step">Raspberry Pi</span>
+          <span class="arrow">→</span>
+          <span class="step">ML + safety rules</span>
+          <span class="arrow">→</span>
+          <span class="step">status.json</span>
+          <span class="arrow">→</span>
+          <span class="step">Live dashboard</span>
+        </div>
+      </section>
+
+      <section id="hardware" class="shell">
+        <div class="hardware-showcase">
+          <div class="hardware-copy reveal">
+            <span class="eyebrow">The hardware</span>
+            <h2>Printed. Mounted.<br />Watching the bench.</h2>
+            <p>
+              A FLIR Lepton radiometric camera and Raspberry Pi sit inside a custom
+              enclosure, mounted above the welding workstation in Lab 107 and mirrored
+              as an interactive exhibition demo.
+            </p>
+            <div class="hardware-stats">
+              <div class="hardware-stat">
+                <strong>80×60</strong>
+                <span>radiometric pixels</span>
+              </div>
+              <div class="hardware-stat">
+                <strong>100%</strong>
+                <span>on-device inference</span>
+              </div>
+              <div class="hardware-stat">
+                <strong>0</strong>
+                <span>RGB cameras</span>
+              </div>
+            </div>
+          </div>
+
+          <figure class="device-photo reveal reveal-delay-1">
+            <img src="assets/hot-seat-device.jpg" alt="Hot Seat thermal monitor in its 3D-printed enclosure" />
+            <figcaption class="device-caption">FLIR Lepton · Raspberry Pi · 3D-printed enclosure</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="deploy" class="shell">
+        <div class="section-head reveal">
+          <h2>Built for the bench. Ready for the floor.</h2>
+        </div>
+
+        <div class="deploy-grid">
+          <article class="deploy-card glass reveal">
+            <span class="deploy-tag tag-blue">Lab device</span>
+            <h3>One Pool Street, Lab 107</h3>
+            <p>
+              Installed over the welding workstation, publishing live occupancy
+              and safety state to this site whenever the device is powered and
+              online.
+            </p>
+          </article>
+
+          <article class="deploy-card glass reveal reveal-delay-1">
+            <span class="deploy-tag tag-amber">Exhibition demo</span>
+            <h3>Interactive demo desk</h3>
+            <p>
+              A second device runs as a hands-on exhibit — visitors sit down,
+              hold a warm object, and watch the state machine respond in
+              seconds.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="privacy" class="shell">
+        <div class="privacy-band glass reveal">
+          <h2>No cameras. No faces.<br />Just heat.</h2>
+          <p>
+            Occupancy sensing usually means pointing a camera at people. Hot Seat
+            was designed around the opposite idea.
+          </p>
+
+          <div class="privacy-points">
+            <div class="privacy-point reveal">
+              <span class="check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <strong>No RGB camera</strong>
+              <span>Nothing that can photograph a person is in the room.</span>
+            </div>
+            <div class="privacy-point reveal reveal-delay-1">
+              <span class="check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <strong>No face recognition</strong>
+              <span>The model only answers one question: is someone there?</span>
+            </div>
+            <div class="privacy-point reveal reveal-delay-2">
+              <span class="check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <strong>80×60 pixels</strong>
+              <span>People appear only as silhouettes of warmth.</span>
+            </div>
+            <div class="privacy-point reveal reveal-delay-3">
+              <span class="check" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m5 12.5 4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <strong>No identity tracking</strong>
+              <span>All processing happens on-device; only states are shared.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-final shell">
+        <h2 class="reveal">See it live.</h2>
+        <p class="reveal reveal-delay-1">
+          The dashboard shows the real thermal field, occupancy state and
+          hot-tool safety, updated straight from the lab.
+        </p>
+        <a class="btn btn-primary btn-large reveal reveal-delay-2" href="dashboard/">Open Live Dashboard</a>
+      </section>
+    </main>
+
+    <footer class="page-footer shell">
+      <span>Hot Seat · Thermal workstation occupancy</span>
+      <span>Raspberry Pi · FLIR Lepton radiometric sensing</span>
+    </footer>
+
+    <script>
+      /* ------------------------------------------------------------------
+         Scroll-reveal
+         ------------------------------------------------------------------ */
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const revealables = document.querySelectorAll(".reveal:not(.is-in)");
+
+      if (reduceMotion || !("IntersectionObserver" in window)) {
+        revealables.forEach((el) => el.classList.add("is-in"));
+      } else {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-in");
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
+        );
+        revealables.forEach((el) => observer.observe(el));
+      }
+
+      /* ------------------------------------------------------------------
+         Hero thermal animation (same palette as the dashboard)
+         ------------------------------------------------------------------ */
+      const heroCanvas = document.getElementById("heroCanvas");
+      const heroCtx = heroCanvas.getContext("2d");
+
+      function thermalColor(value) {
+        const stops = [
+          [0.0, [28, 42, 104]],
+          [0.32, [22, 117, 173]],
+          [0.55, [66, 184, 131]],
+          [0.76, [242, 193, 78]],
+          [1.0, [255, 95, 87]],
+        ];
+        for (let i = 0; i < stops.length - 1; i += 1) {
+          const [start, from] = stops[i];
+          const [end, to] = stops[i + 1];
+          if (value <= end) {
+            const t = (value - start) / (end - start);
+            const rgb = from.map((c, idx) => Math.round(c + (to[idx] - c) * t));
+            return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+          }
+        }
+        return "rgb(255, 95, 87)";
+      }
+
+      function gaussian(x, y, cx, cy, sx, sy, strength) {
+        const dx = (x - cx) / sx;
+        const dy = (y - cy) / sy;
+        return Math.exp(-(dx * dx + dy * dy) / 2) * strength;
+      }
+
+      let heroFrame = 0;
+
+      function drawHeroFrame() {
+        const cols = 80;
+        const rows = 45;
+        const cellW = heroCanvas.width / cols;
+        const cellH = heroCanvas.height / rows;
+        const t = heroFrame;
+
+        for (let y = 0; y < rows; y += 1) {
+          for (let x = 0; x < cols; x += 1) {
+            let value =
+              0.16 + Math.sin((x + t) * 0.08) * 0.025 + Math.cos(y * 0.18) * 0.02;
+
+            // person at the workstation, gently shifting
+            value += gaussian(x, y, 56 + Math.sin(t * 0.05) * 2.5, 22, 6, 9, 0.68);
+            // warm tool on the left of the bench
+            value += gaussian(x, y, 22, 32, 2.4, 2.2, 0.55 + Math.sin(t * 0.11) * 0.12);
+
+            value += Math.random() * 0.022;
+            value = Math.max(0, Math.min(1, value));
+
+            heroCtx.fillStyle = thermalColor(value);
+            heroCtx.fillRect(
+              Math.floor(x * cellW),
+              Math.floor(y * cellH),
+              Math.ceil(cellW),
+              Math.ceil(cellH),
+            );
+          }
+        }
+      }
+
+      drawHeroFrame();
+      if (!reduceMotion) {
+        setInterval(() => {
+          heroFrame += 1;
+          drawHeroFrame();
+        }, 140);
+      }
+
+      /* ------------------------------------------------------------------
+         Live status — same status.json the dashboard polls
+         ------------------------------------------------------------------ */
+      const liveEls = {
+        dot: document.getElementById("liveDot"),
+        pill: document.getElementById("livePill"),
+        state: document.getElementById("liveState"),
+        note: document.getElementById("liveNote"),
+        safety: document.getElementById("liveSafety"),
+        temp: document.getElementById("liveTemp"),
+        updated: document.getElementById("liveUpdated"),
+        snapshot: document.getElementById("liveSnapshot"),
+        placeholder: document.getElementById("livePlaceholder"),
+      };
+
+      let liveConnected = false;
+      let snapshotUrl = "/data/runtime/thermal_view.jpg";
+      let lastSnapshotAt = 0;
+
+      function titleCaseState(value) {
+        return String(value || "--")
+          .toLowerCase()
+          .split("_")
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(" ");
+      }
+
+      function formatTime(date) {
+        return new Intl.DateTimeFormat("en-GB", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }).format(date);
+      }
+
+      function normaliseRuntimeUrl(url, fallback) {
+        if (!url) return fallback;
+        if (url.startsWith("../data/runtime/")) return url.replace("../data/runtime/", "/data/runtime/");
+        if (url.startsWith("data/runtime/")) return `/${url}`;
+        return url;
+      }
+
+      function applyLive(payload) {
+        const occupancy = payload?.occupancy?.state || "FREE";
+        const safety = payload?.safety?.state || "SAFE";
+        const temp = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
+        snapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, snapshotUrl);
+
+        liveEls.state.textContent = titleCaseState(occupancy);
+        liveEls.state.classList.toggle("is-occupied", occupancy === "OCCUPIED");
+        liveEls.state.classList.toggle("is-free", occupancy === "FREE");
+        liveEls.state.classList.toggle("is-recent", occupancy === "RECENTLY_USED");
+
+        liveEls.safety.textContent = titleCaseState(safety);
+        liveEls.temp.textContent = Number.isFinite(temp) ? `${Number(temp).toFixed(1)}°C` : "--";
+        liveEls.updated.textContent = formatTime(new Date());
+
+        liveEls.pill.textContent = "Live from Lab 107";
+        liveEls.dot.classList.add("is-live");
+        liveEls.note.textContent =
+          "Streaming from the Raspberry Pi monitor above the workstation.";
+
+        refreshSnapshot();
+      }
+
+      function setOffline() {
+        liveEls.pill.textContent = "Sensor offline";
+        liveEls.dot.classList.remove("is-live");
+        liveEls.state.textContent = "Standby";
+        liveEls.state.classList.remove("is-occupied", "is-free", "is-recent");
+        liveEls.note.textContent =
+          "The lab device isn't publishing right now — open the dashboard to see the demo simulation.";
+        liveEls.safety.textContent = "--";
+        liveEls.temp.textContent = "--";
+        liveEls.updated.textContent = "--";
+        liveEls.snapshot.classList.remove("is-visible");
+        liveEls.placeholder.style.display = "";
+      }
+
+      function refreshSnapshot() {
+        const now = Date.now();
+        if (now - lastSnapshotAt < 30000) return;
+        lastSnapshotAt = now;
+        liveEls.snapshot.src = `${snapshotUrl}?ts=${now}`;
+      }
+
+      liveEls.snapshot.addEventListener("load", () => {
+        liveEls.snapshot.classList.add("is-visible");
+        liveEls.placeholder.style.display = "none";
+      });
+
+      liveEls.snapshot.addEventListener("error", () => {
+        liveEls.snapshot.classList.remove("is-visible");
+        liveEls.placeholder.style.display = "";
+      });
+
+      async function pollLive() {
+        try {
+          const response = await fetch(`/data/runtime/status.json?ts=${Date.now()}`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          applyLive(await response.json());
+          liveConnected = true;
+        } catch {
+          liveConnected = false;
+          setOffline();
+        }
+      }
+
+      pollLive();
+      setInterval(pollLive, 5000);
+    </script>
+  </body>
+</html>

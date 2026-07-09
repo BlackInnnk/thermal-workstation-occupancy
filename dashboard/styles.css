@@ -3,19 +3,19 @@
    --------------------------------------------------------------------------- */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  --page: #f2f3f7;
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --soft: #aeaeb5;
+  --page: #000;
+  --text: #f5f5f7;
+  --muted: #a1a1a6;
+  --soft: #6e6e73;
 
-  --glass: rgba(255, 255, 255, 0.58);
-  --glass-strong: rgba(255, 255, 255, 0.78);
-  --glass-border: rgba(255, 255, 255, 0.75);
-  --glass-inner: rgba(255, 255, 255, 0.9);
-  --tile: rgba(255, 255, 255, 0.5);
-  --hairline: rgba(60, 60, 67, 0.12);
+  --glass: rgba(255, 255, 255, 0.045);
+  --glass-strong: rgba(255, 255, 255, 0.075);
+  --glass-border: rgba(255, 255, 255, 0.13);
+  --glass-inner: rgba(255, 255, 255, 0.1);
+  --tile: rgba(255, 255, 255, 0.055);
+  --hairline: rgba(255, 255, 255, 0.1);
 
   --blue: #0a84ff;
   --green: #30d158;
@@ -23,12 +23,12 @@
   --amber: #ff9f0a;
 
   --shadow:
-    0 1px 1px rgba(16, 24, 40, 0.03),
-    0 12px 32px rgba(16, 24, 40, 0.09),
-    0 32px 80px rgba(16, 24, 40, 0.07);
+    0 1px 1px rgba(0, 0, 0, 0.45),
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    0 46px 120px rgba(0, 0, 0, 0.42);
   --shadow-soft:
-    0 1px 1px rgba(16, 24, 40, 0.03),
-    0 8px 24px rgba(16, 24, 40, 0.07);
+    0 1px 1px rgba(0, 0, 0, 0.45),
+    0 14px 42px rgba(0, 0, 0, 0.45);
 
   --radius-lg: 28px;
   --radius-md: 20px;
@@ -37,29 +37,6 @@
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
     Inter, "Segoe UI", sans-serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --page: #0b0b0f;
-    --text: #f5f5f7;
-    --muted: #a1a1a8;
-    --soft: #636369;
-
-    --glass: rgba(28, 28, 34, 0.55);
-    --glass-strong: rgba(34, 34, 42, 0.72);
-    --glass-border: rgba(255, 255, 255, 0.12);
-    --glass-inner: rgba(255, 255, 255, 0.08);
-    --tile: rgba(255, 255, 255, 0.06);
-    --hairline: rgba(255, 255, 255, 0.1);
-
-    --shadow:
-      0 1px 1px rgba(0, 0, 0, 0.3),
-      0 16px 40px rgba(0, 0, 0, 0.45);
-    --shadow-soft:
-      0 1px 1px rgba(0, 0, 0, 0.3),
-      0 8px 24px rgba(0, 0, 0, 0.35);
-  }
 }
 
 * {
@@ -73,7 +50,10 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--page);
+  background:
+    radial-gradient(ellipse 80% 45% at 50% -12%, rgba(255, 130, 48, 0.18), transparent 68%),
+    radial-gradient(ellipse 55% 34% at 92% 108%, rgba(10, 132, 255, 0.11), transparent 72%),
+    linear-gradient(180deg, #050506 0%, #000 42%, #050506 100%);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -93,46 +73,15 @@ p {
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 70%, transparent);
 }
 
 .blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.55;
-  animation: drift 26s ease-in-out infinite alternate;
-}
-
-.blob-a {
-  top: -18%;
-  left: -12%;
-  width: 55vw;
-  height: 55vw;
-  background: radial-gradient(circle at 30% 30%, #8ec5ff, transparent 70%);
-}
-
-.blob-b {
-  top: 8%;
-  right: -18%;
-  width: 48vw;
-  height: 48vw;
-  background: radial-gradient(circle at 60% 40%, #ffc7a3, transparent 70%);
-  animation-delay: -8s;
-}
-
-.blob-c {
-  bottom: -25%;
-  left: 22%;
-  width: 52vw;
-  height: 52vw;
-  background: radial-gradient(circle at 50% 50%, #b7f0c6, transparent 70%);
-  animation-delay: -16s;
-}
-
-@media (prefers-color-scheme: dark) {
-  .blob {
-    opacity: 0.28;
-  }
+  display: none;
 }
 
 @keyframes drift {
@@ -193,6 +142,8 @@ p {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 .brand-mark {
@@ -246,9 +197,20 @@ p {
   width: 9px;
   height: 9px;
   border-radius: 999px;
+  background: var(--soft);
+  box-shadow: 0 0 0 5px rgba(161, 161, 166, 0.12);
+  animation: pulse 1.9s ease-in-out infinite;
+  transition: background 220ms ease, box-shadow 220ms ease;
+}
+
+.live-dot.is-live {
   background: var(--green);
   box-shadow: 0 0 0 5px rgba(48, 209, 88, 0.16);
-  animation: pulse 1.9s ease-in-out infinite;
+}
+
+.live-dot.is-offline {
+  background: var(--amber);
+  box-shadow: 0 0 0 5px rgba(255, 159, 10, 0.16);
 }
 
 .sync-copy {
@@ -274,16 +236,20 @@ p {
 /* --- Hero -------------------------------------------------------------------- */
 
 .hero {
-  padding: 44px 6px 28px;
-  text-align: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 40px 6px 26px;
+  flex-wrap: wrap;
 }
 
 .hero h1 {
-  font-size: clamp(2.1rem, 4.4vw, 3.4rem);
-  font-weight: 750;
-  letter-spacing: -0.025em;
+  font-size: clamp(1.9rem, 3.6vw, 2.8rem);
+  font-weight: 780;
+  letter-spacing: -0.03em;
   line-height: 1.06;
-  background: linear-gradient(180deg, var(--text) 55%, color-mix(in srgb, var(--text) 55%, transparent));
+  background: linear-gradient(120deg, #f5f5f7 20%, #ffb54d 45%, #ff5f3a 64%, #f5f5f7 88%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -291,10 +257,35 @@ p {
 
 .hero p {
   max-width: 560px;
-  margin: 14px auto 0;
+  margin: 10px 0 0;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   line-height: 1.5;
+}
+
+.project-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--tile);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.project-link::before {
+  content: "←";
+  margin-right: 7px;
+  color: var(--muted);
+}
+
+.project-link:hover {
+  transform: translateY(-1px);
+  background: var(--glass-strong);
 }
 
 /* --- Section headers & chips -------------------------------------------------- */
@@ -504,6 +495,24 @@ canvas {
   letter-spacing: -0.03em;
   line-height: 1;
   overflow-wrap: anywhere;
+  color: var(--text);
+  transition: color 220ms ease;
+}
+
+.status-panel.is-free .status-heading h2 {
+  color: var(--green);
+}
+
+.status-panel.is-occupied .status-heading h2 {
+  color: var(--red);
+}
+
+.status-panel.is-recent .status-heading h2 {
+  color: var(--blue);
+}
+
+.status-panel.is-warning .status-heading h2 {
+  color: var(--amber);
 }
 
 .status-indicator {

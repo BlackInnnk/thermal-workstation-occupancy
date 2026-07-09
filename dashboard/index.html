@@ -15,7 +15,7 @@
 
     <main class="app-shell">
       <header class="navbar glass">
-        <div class="brand">
+        <a class="brand" href="../" aria-label="Hot Seat project page">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path
@@ -28,10 +28,10 @@
             <span class="brand-name">Hot Seat</span>
             <span class="brand-sub">One Pool Street · Lab 107</span>
           </div>
-        </div>
+        </a>
 
         <div class="sync-panel" aria-live="polite">
-          <span class="live-dot"></span>
+          <span class="live-dot" id="syncDot"></span>
           <div class="sync-copy">
             <span class="sync-label" id="syncLabel">Demo fallback</span>
             <strong id="lastUpdated">--</strong>
@@ -40,8 +40,11 @@
       </header>
 
       <section class="hero">
-        <h1>Thermal workstation monitor</h1>
-        <p>Real-time occupancy and hot-tool safety, sensed from a radiometric thermal camera.</p>
+        <div>
+          <h1>Live monitor</h1>
+          <p>Occupancy and hot-tool safety from the radiometric camera above the bench.</p>
+        </div>
+        <a class="project-link" href="../">Project page</a>
       </section>
 
       <section class="workspace">

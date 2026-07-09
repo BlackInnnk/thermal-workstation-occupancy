@@ -15,7 +15,7 @@ let liveConnected = false;
 let lastLiveStatusAt = 0;
 let frameCount = 0;
 let lastSnapshotRefreshAt = 0;
-let thermalSnapshotUrl = "../data/runtime/thermal_view.jpg";
+let thermalSnapshotUrl = "/data/runtime/thermal_view.jpg";
 let eventLog = [{ time: Date.now() - 1000 * 260, message: "Workstation initialised as Free" }];
 
 const canvas = document.getElementById("heatmapCanvas");
@@ -27,6 +27,7 @@ const ids = {
   eventCount: document.getElementById("eventCount"),
   eventLog: document.getElementById("eventLog"),
   syncLabel: document.getElementById("syncLabel"),
+  syncDot: document.getElementById("syncDot"),
   detectionMode: document.getElementById("detectionMode"),
   snapshotStatus: document.getElementById("snapshotStatus"),
   thermalCaption: document.getElementById("thermalCaption"),
@@ -64,6 +65,13 @@ function titleCaseState(value) {
 
 function isWarningSafety(safety) {
   return safety === "UNATTENDED_HOT" || safety === "MONITORING";
+}
+
+function normaliseRuntimeUrl(url, fallback) {
+  if (!url) return fallback;
+  if (url.startsWith("../data/runtime/")) return url.replace("../data/runtime/", "/data/runtime/");
+  if (url.startsWith("data/runtime/")) return `/${url}`;
+  return url;
 }
 
 function setWorkstationStatus(occupied, source = "Manual") {
@@ -110,7 +118,7 @@ function applyLiveStatus(payload) {
   const occupied = occupancyState === "OCCUPIED";
   const modelProbability = payload?.model?.occupied_probability;
   const toolTemperature = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
-  thermalSnapshotUrl = payload?.snapshot?.url || thermalSnapshotUrl;
+  thermalSnapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, thermalSnapshotUrl);
 
   liveConnected = true;
   lastLiveStatusAt = Date.now();
@@ -141,7 +149,7 @@ function applyLiveStatus(payload) {
 
 async function pollLiveStatus() {
   try {
-    const response = await fetch(`../data/runtime/status.json?ts=${Date.now()}`, {
+    const response = await fetch(`/data/runtime/status.json?ts=${Date.now()}`, {
       cache: "no-store",
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -276,6 +284,8 @@ function render() {
   ids.lastUpdated.textContent = formatTime(new Date());
   if (!liveConnected) ids.frameLabel.textContent = `Demo frame ${String(frameCount).padStart(4, "0")}`;
   ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Demo fallback";
+  ids.syncDot.classList.toggle("is-live", liveConnected);
+  ids.syncDot.classList.toggle("is-offline", !liveConnected);
   ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo fallback";
   if (!liveConnected) ids.snapshotStatus.textContent = "Demo image";
   ids.thermalCaption.textContent = liveConnected

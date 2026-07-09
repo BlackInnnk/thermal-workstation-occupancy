@@ -351,6 +351,7 @@ http://localhost:8000/dashboard/
 The dashboard server intentionally serves only:
 
 ```text
+/                              (project landing page)
 /dashboard/
 /data/runtime/status.json
 /data/runtime/thermal_view.jpg

@@ -40,11 +40,23 @@ class DashboardRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        if path in {"/dashboard/", "/dashboard/index.html"}:
+            landing_page = self.server.root_dir / "index.html"
+            if landing_page.is_file():
+                self._send_file(landing_page, "no-cache", send_body)
+                return
+
         file_path: Path | None = None
         cache_control = "no-cache"
 
-        if path.startswith("/dashboard/"):
-            relative = path.removeprefix("/dashboard/")
+        if path == "/dashboard/live":
+            self.send_response(HTTPStatus.FOUND)
+            self.send_header("Location", "/dashboard/live/")
+            self.end_headers()
+            return
+
+        if path.startswith("/dashboard/live/"):
+            relative = path.removeprefix("/dashboard/live/")
             if relative == "":
                 relative = "index.html"
             file_path = self._safe_child(self.server.dashboard_dir, relative)
@@ -114,7 +126,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     server = DashboardServer((args.host, args.port), DashboardRequestHandler, args.root)
-    print(f"Serving dashboard on http://{args.host}:{args.port}/dashboard/", flush=True)
+    print(f"Serving landing page on http://{args.host}:{args.port}/dashboard/", flush=True)
+    print(f"Serving live dashboard on http://{args.host}:{args.port}/dashboard/live/", flush=True)
     server.serve_forever()
 
 

@@ -187,7 +187,7 @@
       }
 
       .nav-links a {
-        padding: 7px 13px;
+        padding: 7px 11px;
         border-radius: 999px;
         color: var(--muted);
         font-size: 0.88rem;
@@ -726,6 +726,103 @@
         -webkit-backdrop-filter: blur(12px);
       }
 
+      /* --- Evidence ------------------------------------------------------------------ */
+
+      .evidence-showcase {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .evidence-panel {
+        padding: 24px;
+      }
+
+      .evidence-panel h3 {
+        margin-top: 14px;
+        font-size: clamp(1.5rem, 3vw, 2rem);
+        font-weight: 740;
+        letter-spacing: -0.025em;
+        line-height: 1.1;
+      }
+
+      .evidence-panel > p {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+
+      .thermal-pair,
+      .state-grid {
+        display: grid;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .thermal-pair {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .state-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .thermal-frame,
+      .state-shot {
+        overflow: hidden;
+        margin: 0;
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-md);
+        background: color-mix(in srgb, var(--tile) 88%, #000);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+
+      .thermal-frame img,
+      .state-shot img {
+        display: block;
+        width: 100%;
+        background: #05070d;
+      }
+
+      .thermal-frame img {
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+      }
+
+      .state-shot img {
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        object-position: top center;
+      }
+
+      .thermal-frame figcaption,
+      .state-shot figcaption {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 12px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 650;
+        line-height: 1.3;
+      }
+
+      .state-shot figcaption strong,
+      .thermal-frame figcaption strong {
+        color: var(--text);
+        font-weight: 720;
+      }
+
+      .state-shot figcaption span,
+      .thermal-frame figcaption span {
+        color: var(--soft);
+        font-size: 0.72rem;
+        white-space: nowrap;
+      }
+
       /* --- Deployment ------------------------------------------------------------------ */
 
       .deploy-grid {
@@ -953,6 +1050,7 @@
         .live-card,
         .feature-grid,
         .hardware-showcase,
+        .evidence-showcase,
         .deploy-grid {
           grid-template-columns: 1fr;
         }
@@ -980,6 +1078,11 @@
         }
 
         .hardware-stats {
+          grid-template-columns: 1fr;
+        }
+
+        .thermal-pair,
+        .state-grid {
           grid-template-columns: 1fr;
         }
 
@@ -1021,6 +1124,7 @@
           <a href="#live">Live status</a>
           <a href="#how">How it works</a>
           <a href="#hardware">Hardware</a>
+          <a href="#evidence">Evidence</a>
           <a href="#privacy">Privacy</a>
         </nav>
 
@@ -1208,9 +1312,69 @@
           </div>
 
           <figure class="device-photo reveal reveal-delay-1">
-            <img src="/assets/hot-seat-device.jpg" alt="Hot Seat thermal monitor in its 3D-printed enclosure" />
-            <figcaption class="device-caption">FLIR Lepton · Raspberry Pi · 3D-printed enclosure</figcaption>
+            <img src="/assets/device-installed.jpg" alt="Hot Seat thermal monitor installed above the Lab 107 workstation" />
+            <figcaption class="device-caption">Installed above the Lab 107 workstation</figcaption>
           </figure>
+        </div>
+      </section>
+
+      <section id="evidence" class="shell">
+        <div class="section-head reveal">
+          <h2>Captured from the real bench.</h2>
+          <p>
+            These images are taken from the deployed system: the thermal view,
+            the live dashboard, and the state changes the monitor reports.
+          </p>
+        </div>
+
+        <div class="evidence-showcase">
+          <article class="evidence-panel glass reveal">
+            <span class="eyebrow">Thermal evidence</span>
+            <h3>Presence appears as heat, not identity.</h3>
+            <p>
+              The same camera view shows a quiet bench when empty and a warm
+              silhouette when someone sits down.
+            </p>
+
+            <div class="thermal-pair">
+              <figure class="thermal-frame">
+                <img src="/assets/thermal-empty.png" alt="Thermal image of the empty monitored workstation" />
+                <figcaption><strong>Empty bench</strong><span>no body heat</span></figcaption>
+              </figure>
+              <figure class="thermal-frame">
+                <img src="/assets/thermal-occupied.png" alt="Thermal image of a person occupying the monitored workstation" />
+                <figcaption><strong>Occupied</strong><span>warm silhouette</span></figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <article class="evidence-panel glass reveal reveal-delay-1">
+            <span class="eyebrow">Dashboard states</span>
+            <h3>One bench, four useful states.</h3>
+            <p>
+              The interface separates human occupancy from tool safety, so the
+              bench can be free while a soldering tool is still hot.
+            </p>
+
+            <div class="state-grid">
+              <figure class="state-shot">
+                <img src="/assets/state-free.png" alt="Dashboard showing Free and Safe state" />
+                <figcaption><strong>Free</strong><span>safe</span></figcaption>
+              </figure>
+              <figure class="state-shot">
+                <img src="/assets/state-occupied.png" alt="Dashboard showing Occupied and In Use state" />
+                <figcaption><strong>Occupied</strong><span>in use</span></figcaption>
+              </figure>
+              <figure class="state-shot">
+                <img src="/assets/state-unattended-hot.png" alt="Dashboard showing Recently Used and Unattended Hot state" />
+                <figcaption><strong>Unattended hot</strong><span>alert</span></figcaption>
+              </figure>
+              <figure class="state-shot">
+                <img src="/assets/state-cooling.png" alt="Dashboard showing Recently Used and Cooling state" />
+                <figcaption><strong>Cooling</strong><span>recovering</span></figcaption>
+              </figure>
+            </div>
+          </article>
         </div>
       </section>
 

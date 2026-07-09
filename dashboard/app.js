@@ -67,6 +67,14 @@ function isWarningSafety(safety) {
   return safety === "UNATTENDED_HOT" || safety === "MONITORING";
 }
 
+function safetyClass(safety) {
+  if (safety === "UNATTENDED_HOT") return "is-danger";
+  if (safety === "COOLING") return "is-cooling";
+  if (safety === "MONITORING") return "is-monitoring";
+  if (safety === "IN_USE") return "is-in-use";
+  return "is-safe";
+}
+
 function normaliseRuntimeUrl(url, fallback) {
   if (!url) return fallback;
   if (url.startsWith("../data/runtime/")) return url.replace("../data/runtime/", "/data/runtime/");
@@ -183,17 +191,26 @@ function renderWorkstation() {
   const peak = document.getElementById("workstation-peak");
   const change = document.getElementById("workstation-change");
   const safety = document.getElementById("workstation-safety");
+  const safetyPrimary = document.getElementById("workstation-safety-primary");
+  const safetyCard = document.getElementById("workstation-safety-card");
+  const safetyDot = document.getElementById("workstation-safety-dot");
+  const safetyStateClass = safetyClass(workstation.safety);
 
   panel.classList.toggle("is-occupied", workstation.occupied);
   panel.classList.toggle("is-free", workstation.displayStatus === "FREE");
   panel.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
   panel.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
+  panel.classList.toggle("is-danger", workstation.safety === "UNATTENDED_HOT");
   dot.classList.toggle("is-occupied", workstation.occupied);
   dot.classList.toggle("is-free", workstation.displayStatus === "FREE");
   dot.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
-  dot.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
+  dot.classList.toggle("is-warning", workstation.displayStatus === "RECENTLY_USED");
+
+  safetyCard.className = `state-card state-card-safety ${safetyStateClass}`;
+  safetyDot.className = `status-indicator safety-indicator ${safetyStateClass}`;
 
   status.textContent = titleCaseState(workstation.displayStatus);
+  safetyPrimary.textContent = titleCaseState(workstation.safety);
   confidence.textContent = `${workstation.confidence}%`;
   peak.textContent = `${workstation.peak.toFixed(1)}°C`;
   change.textContent = timeAgo(workstation.lastChanged);

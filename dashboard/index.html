@@ -74,12 +74,21 @@
 
         <aside class="status-column" aria-label="Workstation status">
           <article class="status-panel glass" id="workstation-panel">
-            <div class="status-heading">
-              <div>
-                <span class="panel-label">Current state</span>
+            <div class="status-summary">
+              <div class="state-card state-card-occupancy">
+                <div class="state-card-heading">
+                  <span class="panel-label">Occupancy</span>
+                  <span class="status-indicator" id="workstation-dot"></span>
+                </div>
                 <h2 id="workstation-status">--</h2>
               </div>
-              <span class="status-indicator" id="workstation-dot"></span>
+              <div class="state-card state-card-safety" id="workstation-safety-card">
+                <div class="state-card-heading">
+                  <span class="panel-label">Safety</span>
+                  <span class="status-indicator safety-indicator" id="workstation-safety-dot"></span>
+                </div>
+                <h2 id="workstation-safety-primary">--</h2>
+              </div>
             </div>
 
             <div class="status-metrics">
@@ -96,7 +105,7 @@
                 <strong id="workstation-change">--</strong>
               </div>
               <div class="metric-tile">
-                <span>Safety</span>
+                <span>Safety detail</span>
                 <strong id="workstation-safety">--</strong>
               </div>
             </div>

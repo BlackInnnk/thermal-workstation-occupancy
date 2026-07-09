@@ -473,6 +473,13 @@ canvas {
     var(--glass);
 }
 
+.status-panel.is-danger {
+  border-color: color-mix(in srgb, var(--red) 60%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--red) 18%, transparent), transparent 55%),
+    var(--glass);
+}
+
 .panel-label {
   color: var(--muted);
   font-size: 0.74rem;
@@ -481,38 +488,73 @@ canvas {
   text-transform: uppercase;
 }
 
-.status-heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+.status-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.status-heading h2 {
-  margin-top: 8px;
-  font-size: clamp(2.4rem, 3vw, 3.2rem);
+.state-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--tile) 92%, #000);
+}
+
+.state-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.state-card h2 {
+  min-height: 2.35em;
+  margin-top: 12px;
+  font-size: clamp(1.75rem, 2.2vw, 2.35rem);
   font-weight: 760;
   letter-spacing: -0.03em;
-  line-height: 1;
+  line-height: 1.04;
   overflow-wrap: anywhere;
   color: var(--text);
   transition: color 220ms ease;
 }
 
-.status-panel.is-free .status-heading h2 {
+.status-panel.is-free .state-card-occupancy h2 {
   color: var(--green);
 }
 
-.status-panel.is-occupied .status-heading h2 {
+.status-panel.is-occupied .state-card-occupancy h2 {
   color: var(--red);
 }
 
-.status-panel.is-recent .status-heading h2 {
+.status-panel.is-recent .state-card-occupancy h2 {
   color: var(--blue);
 }
 
-.status-panel.is-warning .status-heading h2 {
+.state-card-safety.is-safe h2,
+.state-card-safety.is-in-use h2 {
+  color: var(--green);
+}
+
+.state-card-safety.is-monitoring h2 {
   color: var(--amber);
+}
+
+.state-card-safety.is-cooling h2 {
+  color: var(--blue);
+}
+
+.state-card-safety.is-danger {
+  border-color: color-mix(in srgb, var(--red) 58%, var(--glass-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--red) 18%, transparent), transparent 78%),
+    color-mix(in srgb, var(--tile) 92%, #000);
+}
+
+.state-card-safety.is-danger h2 {
+  color: var(--red);
 }
 
 .status-indicator {
@@ -545,6 +587,27 @@ canvas {
 .status-indicator.is-warning {
   background: var(--amber);
   box-shadow: 0 0 0 7px rgba(255, 159, 10, 0.18);
+}
+
+.safety-indicator.is-safe,
+.safety-indicator.is-in-use {
+  background: var(--green);
+  box-shadow: 0 0 0 7px rgba(48, 209, 88, 0.16);
+}
+
+.safety-indicator.is-monitoring {
+  background: var(--amber);
+  box-shadow: 0 0 0 7px rgba(255, 159, 10, 0.18);
+}
+
+.safety-indicator.is-cooling {
+  background: var(--blue);
+  box-shadow: 0 0 0 7px rgba(10, 132, 255, 0.15);
+}
+
+.safety-indicator.is-danger {
+  background: var(--red);
+  box-shadow: 0 0 0 7px rgba(255, 69, 58, 0.2);
 }
 
 .status-metrics {
@@ -780,7 +843,8 @@ canvas {
   }
 
   .status-metrics,
-  .state-context {
+  .state-context,
+  .status-summary {
     grid-template-columns: 1fr;
   }
 

@@ -68,6 +68,7 @@ class OccupancyResult:
 class SafetyResult:
     state: str
     changed: bool
+    state_seconds: float
     tool_temperature_c: float
     trend_c_per_min: float | None
     unoccupied_seconds: float
@@ -237,6 +238,7 @@ class SafetyStateMachine:
             return SafetyResult(
                 state=self.state,
                 changed=self.state != previous_state,
+                state_seconds=max(0.0, now - self.state_since),
                 tool_temperature_c=tool_temperature_c,
                 trend_c_per_min=None,
                 unoccupied_seconds=0.0,
@@ -296,6 +298,7 @@ class SafetyStateMachine:
         return SafetyResult(
             state=self.state,
             changed=self.state != previous_state,
+            state_seconds=max(0.0, now - self.state_since),
             tool_temperature_c=smoothed_temperature,
             trend_c_per_min=trend,
             unoccupied_seconds=unoccupied_seconds,

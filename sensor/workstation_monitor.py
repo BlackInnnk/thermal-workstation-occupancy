@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from pathlib import Path
 import time
@@ -216,10 +216,20 @@ def write_snapshot(path, image):
 
 
 def write_status_file(path, occupancy, safety, metrics, model_status, snapshot_status):
+    timestamp = datetime.now()
+    occupancy_payload = asdict(occupancy)
+    safety_payload = asdict(safety)
+    occupancy_payload["changed_at"] = (
+        timestamp - timedelta(seconds=occupancy.state_seconds)
+    ).isoformat(timespec="milliseconds")
+    safety_payload["changed_at"] = (
+        timestamp - timedelta(seconds=safety.state_seconds)
+    ).isoformat(timespec="milliseconds")
+
     payload = {
-        "timestamp": datetime.now().isoformat(timespec="milliseconds"),
-        "occupancy": asdict(occupancy),
-        "safety": asdict(safety),
+        "timestamp": timestamp.isoformat(timespec="milliseconds"),
+        "occupancy": occupancy_payload,
+        "safety": safety_payload,
         "metrics": asdict(metrics),
         "model": model_status,
         "snapshot": snapshot_status,

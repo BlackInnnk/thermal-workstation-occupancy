@@ -83,6 +83,9 @@ function normaliseRuntimeUrl(url, fallback) {
 }
 
 function liveStateChangedAt(payload) {
+  const explicitChangedAt = Date.parse(payload?.occupancy?.changed_at || "");
+  if (Number.isFinite(explicitChangedAt)) return explicitChangedAt;
+
   const stateSeconds = Number(payload?.occupancy?.state_seconds);
   if (!Number.isFinite(stateSeconds)) return null;
 

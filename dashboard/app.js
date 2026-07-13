@@ -6,7 +6,7 @@ const workstation = {
   confidence: 0,
   peak: 27.4,
   safety: "SAFE",
-  lastChanged: Date.now() - 1000 * 260,
+  lastChanged: Date.now(),
   history: [false, false, false, false, false, false, false, false, false, false, false, false],
 };
 
@@ -16,7 +16,7 @@ let lastLiveStatusAt = 0;
 let frameCount = 0;
 let lastSnapshotRefreshAt = 0;
 let thermalSnapshotUrl = "/data/runtime/thermal_view.jpg";
-let eventLog = [{ time: Date.now() - 1000 * 260, message: "Workstation initialised as Free" }];
+let eventLog = [{ time: Date.now(), message: "Workstation initialised as Free" }];
 
 const canvas = document.getElementById("heatmapCanvas");
 const ctx = canvas.getContext("2d");
@@ -82,6 +82,15 @@ function normaliseRuntimeUrl(url, fallback) {
   return url;
 }
 
+function liveStateChangedAt(payload) {
+  const stateSeconds = Number(payload?.occupancy?.state_seconds);
+  if (!Number.isFinite(stateSeconds)) return null;
+
+  const statusTimestamp = Date.parse(payload?.timestamp || "");
+  const baseTime = Number.isFinite(statusTimestamp) ? statusTimestamp : Date.now();
+  return baseTime - stateSeconds * 1000;
+}
+
 function setWorkstationStatus(occupied, source = "Manual") {
   const nextStatus = occupied ? "OCCUPIED" : "FREE";
   if (workstation.occupied !== occupied || workstation.displayStatus !== nextStatus) {
@@ -127,6 +136,7 @@ function applyLiveStatus(payload) {
   const modelProbability = payload?.model?.occupied_probability;
   const toolTemperature = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
   thermalSnapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, thermalSnapshotUrl);
+  const changedAt = liveStateChangedAt(payload);
 
   liveConnected = true;
   lastLiveStatusAt = Date.now();
@@ -139,7 +149,7 @@ function applyLiveStatus(payload) {
     addEvent(
       `Live: ${workstation.name} ${titleCaseState(occupancyState)}, safety ${titleCaseState(safetyState)}`,
     );
-    workstation.lastChanged = Date.now();
+    workstation.lastChanged = changedAt ?? Date.now();
   }
 
   workstation.occupied = occupied;
@@ -151,6 +161,9 @@ function applyLiveStatus(payload) {
       : 0;
   workstation.peak = Number.isFinite(toolTemperature) ? Number(toolTemperature) : workstation.peak;
   workstation.safety = safetyState;
+  if (changedAt !== null) {
+    workstation.lastChanged = changedAt;
+  }
   workstation.history.push(occupied);
   workstation.history = workstation.history.slice(-12);
 }

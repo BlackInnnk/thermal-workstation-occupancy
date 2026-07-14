@@ -12,6 +12,7 @@ thermal_color.jpg
 *.avi
 node_modules/
 .claude/
+tmp/
 data/
 models/*
 !models/occupancy_mlp_train02_relabel/

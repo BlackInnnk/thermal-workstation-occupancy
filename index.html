@@ -620,9 +620,16 @@
 
       .hardware-showcase {
         display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+        grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
         gap: 60px;
         align-items: center;
+      }
+
+      .hardware-media {
+        display: grid;
+        grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+        gap: 14px;
+        align-items: end;
       }
 
       .hardware-copy h2 {
@@ -690,6 +697,10 @@
         aspect-ratio: 3 / 4;
         object-fit: cover;
         object-position: center center;
+      }
+
+      .device-photo.environment-photo img {
+        aspect-ratio: 4 / 3;
       }
 
       .device-photo::after {
@@ -1117,6 +1128,10 @@
           grid-template-columns: 1fr;
         }
 
+        .hardware-media {
+          grid-template-columns: 1fr;
+        }
+
         .thermal-pair,
         .state-grid {
           grid-template-columns: 1fr;
@@ -1344,10 +1359,16 @@
             </div>
           </div>
 
-          <figure class="device-photo reveal reveal-delay-1">
-            <img src="/assets/device-installed.jpg" alt="Hot Seat thermal monitor installed above the Lab 107 workstation" width="3072" height="4080" loading="lazy" decoding="async" />
-            <figcaption class="device-caption">Installed above the Lab 107 workstation</figcaption>
-          </figure>
+          <div class="hardware-media reveal reveal-delay-1">
+            <figure class="device-photo">
+              <img src="/assets/device-installed.jpg" alt="Close view of the Hot Seat thermal monitor mounted above the workstation" width="3072" height="4080" loading="lazy" decoding="async" />
+              <figcaption class="device-caption">The thermal monitor</figcaption>
+            </figure>
+            <figure class="device-photo environment-photo">
+              <img src="/assets/lab-107-workstation.jpg" alt="The complete soldering workstation and Hot Seat deployment in Lab 107" width="2400" height="1800" loading="lazy" decoding="async" />
+              <figcaption class="device-caption">Deployed at the Lab 107 bench</figcaption>
+            </figure>
+          </div>
         </div>
       </section>
 

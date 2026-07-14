@@ -7,6 +7,9 @@ from collections import Counter
 from pathlib import Path
 
 
+LABELS = ("free", "occupied", "cooling", "hot_empty")
+
+
 def read_rows(labels_path):
     with labels_path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -25,10 +28,12 @@ def in_range(frame_index, start_frame, end_frame):
 
 
 def write_rows(labels_path, fieldnames, rows):
-    with labels_path.open("w", newline="", encoding="utf-8") as handle:
+    temporary_path = labels_path.with_suffix(labels_path.suffix + ".tmp")
+    with temporary_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+    temporary_path.replace(labels_path)
 
 
 def label_counts(rows):
@@ -48,8 +53,13 @@ def parse_args():
     parser.add_argument("session", type=Path, help="Dataset session directory, e.g. data/raw/eval_01.")
     parser.add_argument("--from-frame", type=int, default=None, help="First frame index to relabel.")
     parser.add_argument("--to-frame", type=int, default=None, help="Last frame index to relabel.")
-    parser.add_argument("--from-label", default=None, help="Only relabel rows currently using this label.")
-    parser.add_argument("--to-label", required=True, help="New label to write.")
+    parser.add_argument(
+        "--from-label",
+        choices=LABELS,
+        default=None,
+        help="Only relabel rows currently using this label.",
+    )
+    parser.add_argument("--to-label", required=True, choices=LABELS, help="New label to write.")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without editing labels.csv.")
     parser.add_argument(
         "--backup",
@@ -61,6 +71,16 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.from_frame is not None and args.from_frame < 0:
+        raise ValueError("--from-frame cannot be negative")
+    if args.to_frame is not None and args.to_frame < 0:
+        raise ValueError("--to-frame cannot be negative")
+    if (
+        args.from_frame is not None
+        and args.to_frame is not None
+        and args.from_frame > args.to_frame
+    ):
+        raise ValueError("--from-frame cannot be greater than --to-frame")
     labels_path = args.session / "labels.csv"
     if not labels_path.exists():
         raise FileNotFoundError(f"Missing labels.csv: {labels_path}")

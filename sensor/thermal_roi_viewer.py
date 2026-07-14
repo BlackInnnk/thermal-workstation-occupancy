@@ -106,6 +106,12 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.scale < 1:
+        raise ValueError("--scale must be at least 1")
+    if args.log_interval <= 0:
+        raise ValueError("--log-interval must be positive")
+    if not np.isfinite(args.threshold):
+        raise ValueError("--threshold must be finite")
     rois = DEFAULT_ROIS
     last_log_time = 0.0
 
@@ -116,8 +122,16 @@ def main():
 
     with Lepton(args.device) as lepton:
         while True:
-            frame, _ = lepton.capture()
-            frame = np.squeeze(frame)
+            try:
+                frame, _ = lepton.capture()
+                frame = np.squeeze(frame)
+            except (AttributeError, OSError, TypeError, ValueError) as exc:
+                print(f"Thermal capture failed; retrying: {exc}")
+                time.sleep(0.2)
+                continue
+            if frame.shape != (60, 80):
+                print(f"Ignoring frame with shape {frame.shape}; expected (60, 80).")
+                continue
 
             temp_c = raw_to_celsius(frame)
             display = make_display(frame, args.scale)

@@ -6,7 +6,7 @@
     <title>Hot Seat — A privacy-friendly thermal workstation monitor</title>
     <meta
       name="description"
-      content="Hot Seat senses welding-workstation occupancy and hot-tool safety with a low-resolution thermal camera — no RGB video, no faces, all on-device."
+      content="Hot Seat senses soldering-workstation occupancy and hot-tool safety with a low-resolution thermal camera — no RGB video, no faces, all on-device."
     />
     <style>
       /* -----------------------------------------------------------------
@@ -19,7 +19,7 @@
         --page: #000;
         --text: #f5f5f7;
         --muted: #a1a1a6;
-        --soft: #6e6e73;
+        --soft: #8e8e93;
 
         --glass: rgba(255, 255, 255, 0.045);
         --glass-border: rgba(255, 255, 255, 0.13);
@@ -97,19 +97,6 @@
         mask-image: linear-gradient(to bottom, transparent, #000 16%, #000 70%, transparent);
       }
 
-      .blob {
-        display: none;
-      }
-
-      @keyframes drift {
-        from {
-          transform: translate3d(0, 0, 0) scale(1);
-        }
-        to {
-          transform: translate3d(4vw, 3vh, 0) scale(1.08);
-        }
-      }
-
       /* --- Glass primitive ---------------------------------------------- */
 
       .glass {
@@ -177,7 +164,7 @@
       .brand-name {
         font-size: 1rem;
         font-weight: 700;
-        letter-spacing: -0.01em;
+        letter-spacing: 0;
       }
 
       .nav-links {
@@ -269,9 +256,9 @@
 
       .hero h1 {
         margin: 26px auto 0;
-        font-size: clamp(4rem, 11vw, 9rem);
+        font-size: 9rem;
         font-weight: 800;
-        letter-spacing: -0.045em;
+        letter-spacing: 0;
         line-height: 0.98;
         background: linear-gradient(110deg, #f5f5f7 20%, #ffb54d 42%, #ff5f3a 55%, #f5f5f7 78%);
         background-size: 220% 100%;
@@ -285,7 +272,7 @@
         max-width: 620px;
         margin: 22px auto 0;
         color: var(--muted);
-        font-size: clamp(1.05rem, 2vw, 1.3rem);
+        font-size: 1.3rem;
         line-height: 1.55;
         font-weight: 480;
       }
@@ -294,7 +281,7 @@
         max-width: 560px;
         margin: 26px auto 0;
         color: var(--muted);
-        font-size: clamp(1.1rem, 2.2vw, 1.45rem);
+        font-size: 1.45rem;
         line-height: 1.5;
         font-weight: 480;
       }
@@ -389,9 +376,9 @@
       }
 
       .section-head h2 {
-        font-size: clamp(1.9rem, 4vw, 2.8rem);
+        font-size: 2.8rem;
         font-weight: 750;
-        letter-spacing: -0.028em;
+        letter-spacing: 0;
         line-height: 1.1;
       }
 
@@ -447,9 +434,9 @@
 
       #liveState {
         margin-top: 16px;
-        font-size: clamp(2.4rem, 5vw, 3.4rem);
+        font-size: 3.4rem;
         font-weight: 760;
-        letter-spacing: -0.03em;
+        letter-spacing: 0;
         line-height: 1;
         transition: color 260ms ease;
       }
@@ -499,7 +486,7 @@
         margin-top: 3px;
         font-size: 1.02rem;
         font-weight: 700;
-        letter-spacing: -0.01em;
+        letter-spacing: 0;
         font-variant-numeric: tabular-nums;
         overflow-wrap: anywhere;
       }
@@ -590,7 +577,7 @@
         margin-top: 18px;
         font-size: 1.22rem;
         font-weight: 720;
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
       }
 
       .feature p {
@@ -639,9 +626,9 @@
 
       .hardware-copy h2 {
         margin-top: 16px;
-        font-size: clamp(2.4rem, 5vw, 4rem);
+        font-size: 4rem;
         font-weight: 780;
-        letter-spacing: -0.04em;
+        letter-spacing: 0;
         line-height: 1.05;
       }
 
@@ -673,7 +660,7 @@
         display: block;
         font-size: 1.35rem;
         font-weight: 760;
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
       }
 
       .hardware-stat span {
@@ -741,9 +728,9 @@
 
       .evidence-panel h3 {
         margin-top: 14px;
-        font-size: clamp(1.5rem, 3vw, 2rem);
+        font-size: 2rem;
         font-weight: 740;
-        letter-spacing: -0.025em;
+        letter-spacing: 0;
         line-height: 1.1;
       }
 
@@ -859,7 +846,7 @@
         margin-top: 16px;
         font-size: 1.35rem;
         font-weight: 730;
-        letter-spacing: -0.02em;
+        letter-spacing: 0;
       }
 
       .deploy-card p {
@@ -877,9 +864,9 @@
       }
 
       .privacy-band h2 {
-        font-size: clamp(2rem, 4.6vw, 3.1rem);
+        font-size: 3.1rem;
         font-weight: 770;
-        letter-spacing: -0.03em;
+        letter-spacing: 0;
         line-height: 1.08;
       }
 
@@ -927,7 +914,7 @@
         margin-top: 12px;
         font-size: 0.94rem;
         font-weight: 680;
-        letter-spacing: -0.01em;
+        letter-spacing: 0;
       }
 
       .privacy-point span {
@@ -946,9 +933,9 @@
       }
 
       .cta-final h2 {
-        font-size: clamp(2.4rem, 6vw, 4rem);
+        font-size: 4rem;
         font-weight: 780;
-        letter-spacing: -0.033em;
+        letter-spacing: 0;
         line-height: 1.05;
         background: linear-gradient(180deg, var(--text) 50%, color-mix(in srgb, var(--text) 45%, transparent));
         -webkit-background-clip: text;
@@ -1032,8 +1019,11 @@
           scroll-behavior: auto;
         }
 
-        .blob,
         .live-dot.is-live {
+          animation: none;
+        }
+
+        .hero h1 {
           animation: none;
         }
 
@@ -1047,6 +1037,20 @@
       /* --- Responsive ---------------------------------------------------------------------- */
 
       @media (max-width: 900px) {
+        .hero h1 {
+          font-size: 6rem;
+        }
+
+        .section-head h2,
+        .privacy-band h2 {
+          font-size: 2.35rem;
+        }
+
+        .hardware-copy h2,
+        .cta-final h2 {
+          font-size: 3rem;
+        }
+
         .live-card,
         .feature-grid,
         .hardware-showcase,
@@ -1071,6 +1075,32 @@
 
         .hero {
           padding-top: 72px;
+        }
+
+        .hero h1 {
+          font-size: 4rem;
+        }
+
+        .hero-kicker {
+          font-size: 1.1rem;
+        }
+
+        #liveState {
+          font-size: 2.6rem;
+        }
+
+        .section-head h2,
+        .privacy-band h2 {
+          font-size: 2rem;
+        }
+
+        .hardware-copy h2,
+        .cta-final h2 {
+          font-size: 2.4rem;
+        }
+
+        .evidence-panel h3 {
+          font-size: 1.5rem;
         }
 
         .live-tiles {
@@ -1100,11 +1130,7 @@
     </style>
   </head>
   <body>
-    <div class="ambient" aria-hidden="true">
-      <span class="blob blob-a"></span>
-      <span class="blob blob-b"></span>
-      <span class="blob blob-c"></span>
-    </div>
+    <div class="ambient" aria-hidden="true"></div>
 
     <div class="shell navbar-wrap">
       <header class="navbar glass">
@@ -1139,7 +1165,7 @@
         <p class="hero-kicker reveal is-in reveal-delay-1">
           It knows the bench is taken.<br />
           It knows the tool is still hot.<br />
-          It never sees your face.
+          It never records an RGB face.
         </p>
         <div class="hero-cta reveal is-in reveal-delay-2">
           <a class="btn btn-primary btn-large" href="/dashboard/live/">Open Live Dashboard</a>
@@ -1220,8 +1246,8 @@
             <h3>Sees heat, not people.</h3>
             <p>
               A FLIR Lepton radiometric camera captures an 80×60 thermal frame —
-              detailed enough to sense presence and hot tools, far too coarse to
-              identify anyone.
+              designed for coarse presence and hot-tool sensing rather than
+              identifying individuals.
             </p>
           </article>
 
@@ -1234,8 +1260,9 @@
             </span>
             <h3>Thinks at the edge.</h3>
             <p>
-              Every frame is processed locally on a Raspberry Pi. No cloud
-              inference, no video stream — the room's data stays in the room.
+              Every frame is processed locally on a Raspberry Pi. When public
+              viewing is enabled, only current states and a low-resolution thermal
+              preview updated every 30 seconds are published.
             </p>
           </article>
 
@@ -1267,7 +1294,7 @@
             <p>
               Rule-based temporal logic tracks the tool area over time —
               safe, monitoring, cooling, or unattended-hot — with hysteresis so a
-              hot tool is never called safe too early.
+              safe result requires sustained below-threshold readings.
             </p>
           </article>
         </div>
@@ -1292,7 +1319,7 @@
             <h2>Printed. Mounted.<br />Watching the bench.</h2>
             <p>
               A FLIR Lepton radiometric camera and Raspberry Pi sit inside a custom
-              enclosure, mounted above the welding workstation in Lab 107 and mirrored
+              enclosure, mounted above the soldering workstation in Lab 107 and mirrored
               as an interactive exhibition demo.
             </p>
             <div class="hardware-stats">
@@ -1312,7 +1339,7 @@
           </div>
 
           <figure class="device-photo reveal reveal-delay-1">
-            <img src="/assets/device-installed.jpg" alt="Hot Seat thermal monitor installed above the Lab 107 workstation" />
+            <img src="/assets/device-installed.jpg" alt="Hot Seat thermal monitor installed above the Lab 107 workstation" width="3072" height="4080" loading="lazy" decoding="async" />
             <figcaption class="device-caption">Installed above the Lab 107 workstation</figcaption>
           </figure>
         </div>
@@ -1338,11 +1365,11 @@
 
             <div class="thermal-pair">
               <figure class="thermal-frame">
-                <img src="/assets/thermal-empty.png" alt="Thermal image of the empty monitored workstation" />
+                <img src="/assets/thermal-empty.png" alt="Thermal image of the empty monitored workstation" width="800" height="600" loading="lazy" decoding="async" />
                 <figcaption><strong>Empty bench</strong><span>no body heat</span></figcaption>
               </figure>
               <figure class="thermal-frame">
-                <img src="/assets/thermal-occupied.png" alt="Thermal image of a person occupying the monitored workstation" />
+                <img src="/assets/thermal-occupied.png" alt="Thermal image of a person occupying the monitored workstation" width="800" height="600" loading="lazy" decoding="async" />
                 <figcaption><strong>Occupied</strong><span>warm silhouette</span></figcaption>
               </figure>
             </div>
@@ -1358,19 +1385,19 @@
 
             <div class="state-grid">
               <figure class="state-shot">
-                <img src="/assets/state-free.png" alt="Dashboard showing Free and Safe state" />
+                <img src="/assets/state-free.png" alt="Dashboard showing Free and Safe state" width="1400" height="765" loading="lazy" decoding="async" />
                 <figcaption><strong>Free</strong><span>safe</span></figcaption>
               </figure>
               <figure class="state-shot">
-                <img src="/assets/state-occupied.png" alt="Dashboard showing Occupied and In Use state" />
+                <img src="/assets/state-occupied.png" alt="Dashboard showing Occupied and In Use state" width="1400" height="765" loading="lazy" decoding="async" />
                 <figcaption><strong>Occupied</strong><span>in use</span></figcaption>
               </figure>
               <figure class="state-shot">
-                <img src="/assets/state-unattended-hot.png" alt="Dashboard showing Recently Used and Unattended Hot state" />
+                <img src="/assets/state-unattended-hot.png" alt="Dashboard showing Recently Used and Unattended Hot state" width="1400" height="765" loading="lazy" decoding="async" />
                 <figcaption><strong>Unattended hot</strong><span>alert</span></figcaption>
               </figure>
               <figure class="state-shot">
-                <img src="/assets/state-cooling.png" alt="Dashboard showing Recently Used and Cooling state" />
+                <img src="/assets/state-cooling.png" alt="Dashboard showing Recently Used and Cooling state" width="1400" height="765" loading="lazy" decoding="async" />
                 <figcaption><strong>Cooling</strong><span>recovering</span></figcaption>
               </figure>
             </div>
@@ -1388,7 +1415,7 @@
             <span class="deploy-tag tag-blue">Lab device</span>
             <h3>One Pool Street, Lab 107</h3>
             <p>
-              Installed over the welding workstation, publishing live occupancy
+              Installed over the soldering workstation, publishing live occupancy
               and safety state to this site whenever the device is powered and
               online.
             </p>
@@ -1408,7 +1435,7 @@
 
       <section id="privacy" class="shell">
         <div class="privacy-band glass reveal">
-          <h2>No cameras. No faces.<br />Just heat.</h2>
+          <h2>No RGB video. No faces.<br />Just heat.</h2>
           <p>
             Occupancy sensing usually means pointing a camera at people. Hot Seat
             was designed around the opposite idea.
@@ -1422,7 +1449,7 @@
                 </svg>
               </span>
               <strong>No RGB camera</strong>
-              <span>Nothing that can photograph a person is in the room.</span>
+              <span>No colour imagery or identifiable facial detail is captured.</span>
             </div>
             <div class="privacy-point reveal reveal-delay-1">
               <span class="check" aria-hidden="true">
@@ -1449,7 +1476,7 @@
                 </svg>
               </span>
               <strong>No identity tracking</strong>
-              <span>All processing happens on-device; only states are shared.</span>
+              <span>Inference stays on-device; only status data and a low-resolution thermal preview are shared.</span>
             </div>
           </div>
         </div>
@@ -1585,6 +1612,10 @@
       let liveConnected = false;
       let snapshotUrl = "/data/runtime/thermal_view.jpg";
       let lastSnapshotAt = 0;
+      let lastSnapshotTimestamp = null;
+      let pollInFlight = false;
+      const occupancyStates = new Set(["FREE", "OCCUPIED", "RECENTLY_USED"]);
+      const safetyStates = new Set(["SAFE", "IN_USE", "MONITORING", "COOLING", "UNATTENDED_HOT"]);
 
       function titleCaseState(value) {
         return String(value || "--")
@@ -1610,9 +1641,17 @@
       }
 
       function applyLive(payload) {
-        const occupancy = payload?.occupancy?.state || "FREE";
-        const safety = payload?.safety?.state || "SAFE";
-        const temp = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
+        const statusTimestamp = Date.parse(payload?.timestamp || "");
+        if (!Number.isFinite(statusTimestamp)) {
+          throw new Error("Invalid sensor timestamp");
+        }
+        const occupancy = payload?.occupancy?.state;
+        const safety = payload?.safety?.state;
+        if (!occupancyStates.has(occupancy) || !safetyStates.has(safety)) {
+          throw new Error("Invalid live state payload");
+        }
+        const temp = Number(payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c);
+        const snapshotTimestamp = Date.parse(payload?.snapshot?.updated_at || "");
         snapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, snapshotUrl);
 
         liveEls.state.textContent = titleCaseState(occupancy);
@@ -1621,24 +1660,28 @@
         liveEls.state.classList.toggle("is-recent", occupancy === "RECENTLY_USED");
 
         liveEls.safety.textContent = titleCaseState(safety);
-        liveEls.temp.textContent = Number.isFinite(temp) ? `${Number(temp).toFixed(1)}°C` : "--";
-        liveEls.updated.textContent = formatTime(new Date());
+        liveEls.temp.textContent = Number.isFinite(temp) ? `${temp.toFixed(1)}°C` : "--";
+        liveEls.updated.textContent = formatTime(new Date(statusTimestamp));
 
         liveEls.pill.textContent = "Live from Lab 107";
         liveEls.dot.classList.add("is-live");
         liveEls.note.textContent =
-          "Streaming from the Raspberry Pi monitor above the workstation.";
+          "Updated from the Raspberry Pi monitor above the workstation.";
 
-        refreshSnapshot();
+        if (Number.isFinite(snapshotTimestamp) && snapshotTimestamp !== lastSnapshotTimestamp) {
+          lastSnapshotTimestamp = snapshotTimestamp;
+          refreshSnapshot(true);
+        } else {
+          refreshSnapshot();
+        }
       }
 
-      function setOffline() {
+      function setOffline(note = "The lab device is not publishing live data right now.") {
         liveEls.pill.textContent = "Sensor offline";
         liveEls.dot.classList.remove("is-live");
-        liveEls.state.textContent = "Standby";
+        liveEls.state.textContent = "Unavailable";
         liveEls.state.classList.remove("is-occupied", "is-free", "is-recent");
-        liveEls.note.textContent =
-          "The lab device isn't publishing right now — open the dashboard to see the demo simulation.";
+        liveEls.note.textContent = note;
         liveEls.safety.textContent = "--";
         liveEls.temp.textContent = "--";
         liveEls.updated.textContent = "--";
@@ -1646,14 +1689,16 @@
         liveEls.placeholder.style.display = "";
       }
 
-      function refreshSnapshot() {
+      function refreshSnapshot(force = false) {
+        if (!liveConnected) return;
         const now = Date.now();
-        if (now - lastSnapshotAt < 30000) return;
+        if (!force && now - lastSnapshotAt < 30000) return;
         lastSnapshotAt = now;
-        liveEls.snapshot.src = `${snapshotUrl}?ts=${now}`;
+        liveEls.snapshot.src = `${snapshotUrl}?ts=${lastSnapshotTimestamp || now}`;
       }
 
       liveEls.snapshot.addEventListener("load", () => {
+        if (!liveConnected) return;
         liveEls.snapshot.classList.add("is-visible");
         liveEls.placeholder.style.display = "none";
       });
@@ -1664,16 +1709,37 @@
       });
 
       async function pollLive() {
+        if (pollInFlight) return;
+        pollInFlight = true;
         try {
-          const response = await fetch(`/data/runtime/status.json?ts=${Date.now()}`, {
-            cache: "no-store",
-          });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          applyLive(await response.json());
+          const cacheBust = Date.now();
+          const [statusResponse, healthResponse] = await Promise.all([
+            fetch(`/data/runtime/status.json?ts=${cacheBust}`, { cache: "no-store" }),
+            fetch(`/healthz?ts=${cacheBust}`, { cache: "no-store" }),
+          ]);
+          if (!statusResponse.ok || !healthResponse.ok) throw new Error("Live endpoint unavailable");
+
+          const [payload, health] = await Promise.all([
+            statusResponse.json(),
+            healthResponse.json(),
+          ]);
+          if (health?.sensor !== "fresh") {
+            liveConnected = false;
+            setOffline(
+              health?.sensor === "stale"
+                ? "The sensor feed has stopped updating; the page will reconnect automatically."
+                : "The lab device is not publishing live data right now.",
+            );
+            return;
+          }
+
           liveConnected = true;
+          applyLive(payload);
         } catch {
           liveConnected = false;
           setOffline();
+        } finally {
+          pollInFlight = false;
         }
       }
 

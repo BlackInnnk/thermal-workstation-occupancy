@@ -4,46 +4,67 @@ import argparse
 import csv
 import json
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+import platform
 
 import numpy as np
 
 from train_thermal_mlp import (
     LABEL_ORDER,
     OCCUPANCY_LABEL_ORDER,
+    INPUT_DIM,
     confusion_matrix,
+    dataset_fingerprint,
     draw_confusion_matrix,
     load_frames,
     predict,
+    portable_path,
     read_dataset_rows,
+    sha256_file,
     unweighted_loss,
     write_confusion_csv,
 )
 
 
 def load_model(model_path):
-    data = np.load(model_path)
-    labels = [str(label) for label in data["labels"]]
-    if labels == LABEL_ORDER:
-        task = "state"
-    elif labels == OCCUPANCY_LABEL_ORDER:
-        task = "occupancy"
-    else:
-        raise ValueError(
-            f"Model labels {labels} do not match expected labels {LABEL_ORDER} "
-            f"or {OCCUPANCY_LABEL_ORDER}"
-        )
+    with np.load(model_path, allow_pickle=False) as data:
+        labels = [str(label) for label in data["labels"]]
+        if labels == LABEL_ORDER:
+            task = "state"
+        elif labels == OCCUPANCY_LABEL_ORDER:
+            task = "occupancy"
+        else:
+            raise ValueError(
+                f"Model labels {labels} do not match expected labels {LABEL_ORDER} "
+                f"or {OCCUPANCY_LABEL_ORDER}"
+            )
 
-    model = {
-        "w1": data["w1"].astype(np.float32),
-        "b1": data["b1"].astype(np.float32),
-        "w2": data["w2"].astype(np.float32),
-        "b2": data["b2"].astype(np.float32),
-    }
-    mean = data["mean"].astype(np.float32)
-    std = data["std"].astype(np.float32)
-    return model, mean, std, labels, task
+        model = {
+            "w1": data["w1"].astype(np.float32),
+            "b1": data["b1"].astype(np.float32),
+            "w2": data["w2"].astype(np.float32),
+            "b2": data["b2"].astype(np.float32),
+        }
+        mean = data["mean"].astype(np.float32)
+        std = data["std"].astype(np.float32)
+
+    valid_normalisation_shapes = {(INPUT_DIM,), (1, INPUT_DIM)}
+    hidden_units = model["w1"].shape[1] if model["w1"].ndim == 2 else None
+    if (
+        hidden_units is None
+        or model["w1"].shape[0] != INPUT_DIM
+        or model["b1"].shape not in {(hidden_units,), (1, hidden_units)}
+        or model["w2"].shape != (hidden_units, len(labels))
+        or model["b2"].shape not in {(len(labels),), (1, len(labels))}
+        or mean.shape not in valid_normalisation_shapes
+        or std.shape not in valid_normalisation_shapes
+    ):
+        raise ValueError(f"Model {model_path} contains incompatible array dimensions")
+    arrays = (*model.values(), mean, std)
+    if not all(np.all(np.isfinite(values)) for values in arrays) or np.any(std <= 0):
+        raise ValueError(f"Model {model_path} contains invalid numeric values")
+    return model, mean.reshape(1, INPUT_DIM), std.reshape(1, INPUT_DIM), labels, task
 
 
 def default_output_dir(model_path, session_dirs):
@@ -110,7 +131,7 @@ def write_predictions_csv(path, rows, y_true, y_pred, probs, labels):
             out = {
                 "session": row["session"],
                 "frame_index": row["frame_index"],
-                "filename": str(row["frame_path"]),
+                "filename": row["filename"],
                 "source_label": row.get("source_label", row["label"]),
                 "actual": labels[int(true_id)],
                 "predicted": labels[int(pred_id)],
@@ -151,6 +172,8 @@ def main():
 
     model, mean, std, labels, task = load_model(model_path)
     rows = read_dataset_rows(session_dirs, task=task)
+    if not rows:
+        raise ValueError("No labelled frames found in the evaluation sessions")
     x, y = load_frames(rows, labels=labels)
     x = (x - mean) / std
 
@@ -168,10 +191,18 @@ def main():
     label_counts = Counter(row["label"] for row in rows)
     source_counts = Counter(row["source_label"] for row in rows)
     metrics = {
-        "created_at": datetime.now().isoformat(timespec="seconds"),
-        "model_path": str(model_path),
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "model_path": portable_path(model_path),
+        "model_sha256": sha256_file(model_path),
         "task": task,
-        "sessions": [str(path) for path in session_dirs],
+        "sessions": [portable_path(path) for path in session_dirs],
+        "dataset_fingerprints_sha256": {
+            portable_path(path): dataset_fingerprint(path) for path in session_dirs
+        },
+        "software": {
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+        },
         "labels": labels,
         "frames": len(rows),
         "accuracy": accuracy,

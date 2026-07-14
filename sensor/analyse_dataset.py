@@ -106,6 +106,12 @@ def read_label_rows(labels_path):
             parsed["min_c"] = float(parsed["min_c"])
             parsed["max_c"] = float(parsed["max_c"])
             parsed["mean_c"] = float(parsed["mean_c"])
+            temperatures = (parsed["min_c"], parsed["max_c"], parsed["mean_c"])
+            if not all(math.isfinite(value) for value in temperatures):
+                raise ValueError(
+                    f"{labels_path} contains non-finite summary temperatures "
+                    f"at frame {parsed['frame_index']}"
+                )
             parsed["timestamp_dt"] = parse_timestamp(parsed["timestamp"])
             rows.append(parsed)
     return rows
@@ -452,8 +458,13 @@ def draw_sample_grid(session_dir, rows, output_path, title, samples_per_label, s
     loaded_samples = []
     for label in labels:
         for row in sample_rows[label]:
-            frame = np.load(session_dir / row["filename"])
-            loaded_samples.append((label, row, np.squeeze(frame)))
+            frame_path = session_dir / row["filename"]
+            frame = np.squeeze(np.load(frame_path, allow_pickle=False))
+            if frame.shape != (60, 80):
+                raise ValueError(f"{frame_path} has shape {frame.shape}, expected 60x80")
+            if not np.issubdtype(frame.dtype, np.number) or not np.all(np.isfinite(frame)):
+                raise ValueError(f"{frame_path} does not contain finite numeric temperatures")
+            loaded_samples.append((label, row, frame))
 
     if not loaded_samples:
         return False

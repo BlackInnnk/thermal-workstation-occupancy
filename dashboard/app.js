@@ -1,27 +1,30 @@
 const workstation = {
-  id: 1,
-  name: "Welding Workstation",
+  name: "Soldering Workstation",
   occupied: false,
-  displayStatus: "FREE",
-  confidence: 0,
-  peak: 27.4,
-  safety: "SAFE",
-  lastChanged: Date.now(),
-  history: [false, false, false, false, false, false, false, false, false, false, false, false],
+  displayStatus: "OFFLINE",
+  confidence: null,
+  peak: null,
+  safety: "UNAVAILABLE",
+  detectionMode: null,
+  lastChanged: null,
+  history: Array(12).fill(null),
 };
 
-let autoUpdate = true;
+let connectionState = "connecting";
 let liveConnected = false;
-let lastLiveStatusAt = 0;
-let frameCount = 0;
+let lastSensorTimestamp = null;
+let lastSnapshotTimestamp = null;
 let lastSnapshotRefreshAt = 0;
+let snapshotIntervalSeconds = 30;
 let thermalSnapshotUrl = "/data/runtime/thermal_view.jpg";
-let eventLog = [{ time: Date.now(), message: "Workstation initialised as Free" }];
+let pollInFlight = false;
+let eventLog = [{ time: Date.now(), message: "Waiting for the live sensor feed" }];
 
 const canvas = document.getElementById("heatmapCanvas");
 const ctx = canvas.getContext("2d");
 
 const ids = {
+  stateAnnouncement: document.getElementById("stateAnnouncement"),
   lastUpdated: document.getElementById("lastUpdated"),
   frameLabel: document.getElementById("frameLabel"),
   eventCount: document.getElementById("eventCount"),
@@ -30,10 +33,17 @@ const ids = {
   syncDot: document.getElementById("syncDot"),
   detectionMode: document.getElementById("detectionMode"),
   snapshotStatus: document.getElementById("snapshotStatus"),
+  stackSnapshotInterval: document.getElementById("stackSnapshotInterval"),
   thermalCaption: document.getElementById("thermalCaption"),
-  simulationState: document.getElementById("simulationState"),
+  connectionState: document.getElementById("connectionState"),
   thermalSnapshot: document.getElementById("thermalSnapshot"),
+  feedPlaceholder: document.getElementById("feedPlaceholder"),
+  feedPlaceholderTitle: document.getElementById("feedPlaceholderTitle"),
+  feedPlaceholderText: document.getElementById("feedPlaceholderText"),
 };
+
+const OCCUPANCY_STATES = new Set(["FREE", "OCCUPIED", "RECENTLY_USED"]);
+const SAFETY_STATES = new Set(["SAFE", "IN_USE", "MONITORING", "COOLING", "UNATTENDED_HOT"]);
 
 function formatTime(date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -44,10 +54,14 @@ function formatTime(date) {
 }
 
 function timeAgo(timestamp) {
-  const seconds = Math.max(1, Math.round((Date.now() - timestamp) / 1000));
+  if (!Number.isFinite(timestamp)) return "--";
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 2) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  return `${minutes}m ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
 }
 
 function addEvent(message) {
@@ -72,7 +86,8 @@ function safetyClass(safety) {
   if (safety === "COOLING") return "is-cooling";
   if (safety === "MONITORING") return "is-monitoring";
   if (safety === "IN_USE") return "is-in-use";
-  return "is-safe";
+  if (safety === "SAFE") return "is-safe";
+  return "is-offline";
 }
 
 function normaliseRuntimeUrl(url, fallback) {
@@ -94,108 +109,124 @@ function liveStateChangedAt(payload) {
   return baseTime - stateSeconds * 1000;
 }
 
-function setWorkstationStatus(occupied, source = "Manual") {
-  const nextStatus = occupied ? "OCCUPIED" : "FREE";
-  if (workstation.occupied !== occupied || workstation.displayStatus !== nextStatus) {
-    workstation.occupied = occupied;
-    workstation.displayStatus = nextStatus;
-    workstation.lastChanged = Date.now();
-    workstation.history.push(occupied);
-    workstation.history = workstation.history.slice(-12);
-    addEvent(`${source}: ${workstation.name} changed to ${occupied ? "Occupied" : "Free"}`);
+function setConnectionState(nextState, message) {
+  const changed = connectionState !== nextState;
+  if (changed && message) {
+    addEvent(message);
+    ids.stateAnnouncement.textContent = message;
   }
+  connectionState = nextState;
+  liveConnected = nextState === "live";
 
-  workstation.confidence = occupied ? randomInt(82, 96) : randomInt(88, 98);
-  workstation.peak = occupied ? randomFloat(33.2, 36.8) : randomFloat(25.4, 28.7);
-  workstation.safety = occupied ? "IN_USE" : "SAFE";
-}
+  if (liveConnected) return;
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function randomFloat(min, max) {
-  return Math.round((Math.random() * (max - min) + min) * 10) / 10;
-}
-
-function maybeAutoUpdate() {
-  if (!autoUpdate || liveConnected) return;
-
-  if (Math.random() < 0.16) {
-    setWorkstationStatus(!workstation.occupied, "Auto");
-  } else {
-    workstation.history.push(workstation.occupied);
-    workstation.history = workstation.history.slice(-12);
-    workstation.confidence = workstation.occupied ? randomInt(84, 96) : randomInt(89, 98);
-    workstation.peak = workstation.occupied ? randomFloat(33.0, 36.9) : randomFloat(25.2, 28.9);
-    workstation.safety = workstation.occupied ? "IN_USE" : "SAFE";
-  }
+  workstation.occupied = false;
+  workstation.displayStatus = "OFFLINE";
+  workstation.confidence = null;
+  workstation.peak = null;
+  workstation.safety = "UNAVAILABLE";
+  workstation.detectionMode = null;
+  workstation.lastChanged = null;
+  workstation.history = Array(12).fill(null);
+  ids.thermalSnapshot.classList.remove("is-visible");
+  ids.feedPlaceholder.hidden = false;
 }
 
 function applyLiveStatus(payload) {
-  const occupancyState = payload?.occupancy?.state || "FREE";
-  const safetyState = payload?.safety?.state || "SAFE";
-  const occupied = occupancyState === "OCCUPIED";
-  const modelProbability = payload?.model?.occupied_probability;
-  const toolTemperature = payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c;
-  thermalSnapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, thermalSnapshotUrl);
-  const changedAt = liveStateChangedAt(payload);
-
-  liveConnected = true;
-  lastLiveStatusAt = Date.now();
-
+  const occupancyState = payload?.occupancy?.state;
+  const safetyState = payload?.safety?.state;
+  const statusTimestamp = Date.parse(payload?.timestamp || "");
   if (
-    workstation.occupied !== occupied ||
-    workstation.safety !== safetyState ||
-    workstation.displayStatus !== occupancyState
+    !OCCUPANCY_STATES.has(occupancyState)
+    || !SAFETY_STATES.has(safetyState)
+    || !Number.isFinite(statusTimestamp)
   ) {
-    addEvent(
-      `Live: ${workstation.name} ${titleCaseState(occupancyState)}, safety ${titleCaseState(safetyState)}`,
-    );
-    workstation.lastChanged = changedAt ?? Date.now();
+    throw new Error("Incomplete live status payload");
+  }
+
+  const occupied = occupancyState === "OCCUPIED";
+  const modelProbability = Number(payload?.model?.occupied_probability);
+  const toolTemperature = Number(
+    payload?.safety?.tool_temperature_c ?? payload?.metrics?.tool_p95_c,
+  );
+  const changedAt = liveStateChangedAt(payload);
+  const snapshotTimestamp = Date.parse(payload?.snapshot?.updated_at || "");
+  const configuredSnapshotInterval = Number(payload?.snapshot?.interval_seconds);
+  const previousStatus = workstation.displayStatus;
+  const previousSafety = workstation.safety;
+
+  thermalSnapshotUrl = normaliseRuntimeUrl(payload?.snapshot?.url, thermalSnapshotUrl);
+  if (Number.isFinite(configuredSnapshotInterval) && configuredSnapshotInterval > 0) {
+    snapshotIntervalSeconds = configuredSnapshotInterval;
+  }
+  lastSensorTimestamp = statusTimestamp;
+  setConnectionState("live", "Live sensor feed connected");
+
+  if (previousStatus !== occupancyState || previousSafety !== safetyState) {
+    const stateMessage =
+      `Live: ${workstation.name} ${titleCaseState(occupancyState)}, safety ${titleCaseState(safetyState)}`;
+    addEvent(stateMessage);
+    ids.stateAnnouncement.textContent = stateMessage;
   }
 
   workstation.occupied = occupied;
   workstation.displayStatus = occupancyState;
   workstation.confidence = Number.isFinite(modelProbability)
     ? Math.round(modelProbability * 100)
-    : occupied
-      ? 100
-      : 0;
-  workstation.peak = Number.isFinite(toolTemperature) ? Number(toolTemperature) : workstation.peak;
+    : null;
+  workstation.peak = Number.isFinite(toolTemperature) ? toolTemperature : null;
   workstation.safety = safetyState;
-  if (changedAt !== null) {
-    workstation.lastChanged = changedAt;
-  }
+  workstation.detectionMode = payload?.model ? "ML + rules" : "ROI rules";
+  workstation.lastChanged = changedAt;
   workstation.history.push(occupied);
   workstation.history = workstation.history.slice(-12);
+
+  if (Number.isFinite(snapshotTimestamp) && snapshotTimestamp !== lastSnapshotTimestamp) {
+    lastSnapshotTimestamp = snapshotTimestamp;
+    refreshThermalSnapshot(true);
+  }
 }
 
 async function pollLiveStatus() {
+  if (pollInFlight) return;
+  pollInFlight = true;
+
   try {
-    const response = await fetch(`/data/runtime/status.json?ts=${Date.now()}`, {
-      cache: "no-store",
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
+    const cacheBust = Date.now();
+    const [statusResponse, healthResponse] = await Promise.all([
+      fetch(`/data/runtime/status.json?ts=${cacheBust}`, { cache: "no-store" }),
+      fetch(`/healthz?ts=${cacheBust}`, { cache: "no-store" }),
+    ]);
+    if (!statusResponse.ok || !healthResponse.ok) throw new Error("Live endpoint unavailable");
+
+    const [payload, health] = await Promise.all([
+      statusResponse.json(),
+      healthResponse.json(),
+    ]);
+    if (health?.sensor !== "fresh") {
+      setConnectionState("stale", "Sensor status stopped updating");
+      return;
+    }
+
     applyLiveStatus(payload);
   } catch {
-    if (liveConnected && Date.now() - lastLiveStatusAt > 5000) {
-      liveConnected = false;
-      ids.thermalSnapshot.classList.remove("is-visible");
-      addEvent("Live status disconnected; dashboard returned to demo mode");
-    }
+    setConnectionState("offline", "Live sensor feed unavailable");
+  } finally {
+    pollInFlight = false;
+    render();
   }
 }
 
 function refreshThermalSnapshot(force = false) {
   if (!liveConnected) return;
   const now = Date.now();
-  if (!force && now - lastSnapshotRefreshAt < 30000) return;
+  if (!force && now - lastSnapshotRefreshAt < snapshotIntervalSeconds * 1000) return;
 
   lastSnapshotRefreshAt = now;
-  ids.thermalSnapshot.src = `${thermalSnapshotUrl}?ts=${now}`;
-  ids.frameLabel.textContent = `Snapshot ${formatTime(new Date(now))}`;
+  ids.thermalSnapshot.src = `${thermalSnapshotUrl}?ts=${lastSnapshotTimestamp || now}`;
+  ids.frameLabel.textContent = Number.isFinite(lastSnapshotTimestamp)
+    ? `Snapshot ${formatTime(new Date(lastSnapshotTimestamp))}`
+    : "Snapshot pending";
   ids.snapshotStatus.textContent = "Refreshing";
 }
 
@@ -215,28 +246,38 @@ function renderWorkstation() {
   panel.classList.toggle("is-occupied", workstation.occupied);
   panel.classList.toggle("is-free", workstation.displayStatus === "FREE");
   panel.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
+  panel.classList.toggle("is-offline", !liveConnected);
   panel.classList.toggle("is-warning", !workstation.occupied && isWarningSafety(workstation.safety));
   panel.classList.toggle("is-danger", workstation.safety === "UNATTENDED_HOT");
-  dot.classList.toggle("is-occupied", workstation.occupied);
-  dot.classList.toggle("is-free", workstation.displayStatus === "FREE");
-  dot.classList.toggle("is-recent", workstation.displayStatus === "RECENTLY_USED");
-  dot.classList.toggle("is-warning", workstation.displayStatus === "RECENTLY_USED");
+
+  dot.className = "status-indicator";
+  if (!liveConnected) dot.classList.add("is-offline");
+  else if (workstation.occupied) dot.classList.add("is-occupied");
+  else if (workstation.displayStatus === "RECENTLY_USED") dot.classList.add("is-recent");
+  else dot.classList.add("is-free");
 
   safetyCard.className = `state-card state-card-safety ${safetyStateClass}`;
   safetyDot.className = `status-indicator safety-indicator ${safetyStateClass}`;
 
-  status.textContent = titleCaseState(workstation.displayStatus);
-  safetyPrimary.textContent = titleCaseState(workstation.safety);
-  confidence.textContent = `${workstation.confidence}%`;
-  peak.textContent = `${workstation.peak.toFixed(1)}°C`;
+  status.textContent = liveConnected ? titleCaseState(workstation.displayStatus) : "Offline";
+  safetyPrimary.textContent = liveConnected ? titleCaseState(workstation.safety) : "Unavailable";
+  confidence.textContent = Number.isFinite(workstation.confidence)
+    ? `${workstation.confidence}%`
+    : "--";
+  peak.textContent = Number.isFinite(workstation.peak) ? `${workstation.peak.toFixed(1)}°C` : "--";
   change.textContent = timeAgo(workstation.lastChanged);
-  safety.textContent = titleCaseState(workstation.safety);
+  safety.textContent = liveConnected ? titleCaseState(workstation.safety) : "--";
 
   const timeline = document.getElementById("workstation-timeline");
   timeline.innerHTML = "";
-  workstation.history.forEach((sample) => {
+  workstation.history.forEach((sample, index) => {
     const segment = document.createElement("span");
-    segment.className = sample ? "is-occupied" : "is-free";
+    segment.className = sample === null ? "is-missing" : sample ? "is-occupied" : "is-free";
+    segment.setAttribute("role", "listitem");
+    segment.setAttribute(
+      "aria-label",
+      `Reading ${index + 1}: ${sample === null ? "unavailable" : sample ? "occupied" : "not occupied"}`,
+    );
     timeline.appendChild(segment);
   });
 }
@@ -255,104 +296,89 @@ function renderEventLog() {
   ids.eventCount.textContent = `${eventLog.length} events`;
 }
 
-function thermalColor(value) {
-  const stops = [
-    [0.0, [28, 42, 104]],
-    [0.32, [22, 117, 173]],
-    [0.55, [66, 184, 131]],
-    [0.76, [242, 193, 78]],
-    [1.0, [255, 95, 87]],
-  ];
+function drawOfflineField() {
+  const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, "#0d1227");
+  gradient.addColorStop(0.5, "#11162b");
+  gradient.addColorStop(1, "#09101f");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  for (let i = 0; i < stops.length - 1; i += 1) {
-    const [start, from] = stops[i];
-    const [end, to] = stops[i + 1];
-    if (value <= end) {
-      const t = (value - start) / (end - start);
-      const rgb = from.map((channel, idx) => Math.round(channel + (to[idx] - channel) * t));
-      return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
-    }
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= canvas.width; x += 40) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
   }
-  return "rgb(255, 95, 87)";
-}
-
-function gaussian(x, y, cx, cy, sx, sy, strength) {
-  const dx = (x - cx) / sx;
-  const dy = (y - cy) / sy;
-  return Math.exp(-(dx * dx + dy * dy) / 2) * strength;
-}
-
-function drawFallbackHeatmap() {
-  if (liveConnected && ids.thermalSnapshot.classList.contains("is-visible")) return;
-
-  const lowWidth = 80;
-  const lowHeight = 60;
-  const cellW = canvas.width / lowWidth;
-  const cellH = canvas.height / lowHeight;
-  const now = Date.now();
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  for (let y = 0; y < lowHeight; y += 1) {
-    for (let x = 0; x < lowWidth; x += 1) {
-      let value = 0.18 + Math.sin((x + frameCount) * 0.08) * 0.025 + Math.cos(y * 0.18) * 0.02;
-
-      if (workstation.occupied) {
-        value += gaussian(x, y, 55 + Math.sin(frameCount * 0.07) * 2, 30, 7, 10, 0.72);
-      }
-      if (!workstation.occupied && isWarningSafety(workstation.safety)) {
-        value += gaussian(x, y, 18, 40, 2, 2, 0.8);
-      }
-
-      value += Math.random() * 0.025;
-      value = Math.max(0, Math.min(1, value));
-
-      ctx.fillStyle = thermalColor(value);
-      ctx.fillRect(Math.floor(x * cellW), Math.floor(y * cellH), Math.ceil(cellW), Math.ceil(cellH));
-    }
+  for (let y = 0; y <= canvas.height; y += 40) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
   }
 }
 
 function render() {
-  ids.lastUpdated.textContent = formatTime(new Date());
-  if (!liveConnected) ids.frameLabel.textContent = `Demo frame ${String(frameCount).padStart(4, "0")}`;
-  ids.syncLabel.textContent = liveConnected ? "Live sensor feed" : "Demo fallback";
+  ids.lastUpdated.textContent = liveConnected && Number.isFinite(lastSensorTimestamp)
+    ? formatTime(new Date(lastSensorTimestamp))
+    : "--";
+  ids.syncLabel.textContent = liveConnected
+    ? "Live sensor feed"
+    : connectionState === "connecting"
+      ? "Connecting"
+      : connectionState === "stale"
+        ? "Sensor feed stale"
+        : "Sensor offline";
   ids.syncDot.classList.toggle("is-live", liveConnected);
   ids.syncDot.classList.toggle("is-offline", !liveConnected);
-  ids.detectionMode.textContent = liveConnected ? "ML + rules" : "Demo fallback";
-  if (!liveConnected) ids.snapshotStatus.textContent = "Demo image";
-  ids.thermalCaption.textContent = liveConnected
-    ? "Thermal preview image exported from the Raspberry Pi monitor every 30 seconds."
-    : "Simulated 80x60 radiometric frame for dashboard demonstration.";
-  ids.simulationState.textContent = liveConnected
+  ids.detectionMode.textContent = liveConnected ? workstation.detectionMode || "--" : "--";
+  ids.connectionState.textContent = liveConnected
     ? "Live sensor feed"
-    : autoUpdate
-      ? "Demo fallback"
-      : "Demo paused";
+    : connectionState === "connecting"
+      ? "Connecting"
+      : connectionState === "stale"
+        ? "Stale feed"
+        : "Offline";
+  ids.stackSnapshotInterval.textContent = `Updated every ${snapshotIntervalSeconds} seconds`;
+
+  if (!liveConnected) {
+    ids.frameLabel.textContent = connectionState === "connecting" ? "Connecting" : "Offline";
+    ids.snapshotStatus.textContent = connectionState === "connecting" ? "Waiting" : "Unavailable";
+    ids.thermalCaption.textContent =
+      "No current thermal frame is available. The dashboard will reconnect automatically.";
+    ids.feedPlaceholderTitle.textContent =
+      connectionState === "connecting" ? "Connecting to the sensor" : "Live feed unavailable";
+    ids.feedPlaceholderText.textContent =
+      connectionState === "stale"
+        ? "The Raspberry Pi status file has stopped updating."
+        : "Start the Raspberry Pi monitor to restore live data.";
+  } else {
+    ids.thermalCaption.textContent =
+      `Thermal preview image exported from the Raspberry Pi monitor every ${snapshotIntervalSeconds} seconds.`;
+  }
 
   renderWorkstation();
   renderEventLog();
-  refreshThermalSnapshot();
-  drawFallbackHeatmap();
 }
 
 ids.thermalSnapshot.addEventListener("load", () => {
+  if (!liveConnected) return;
   ids.thermalSnapshot.classList.add("is-visible");
+  ids.feedPlaceholder.hidden = true;
   ids.snapshotStatus.textContent = "Live image";
 });
 
 ids.thermalSnapshot.addEventListener("error", () => {
   ids.thermalSnapshot.classList.remove("is-visible");
-  ids.snapshotStatus.textContent = liveConnected ? "Image pending" : "Demo image";
+  ids.feedPlaceholder.hidden = false;
+  ids.snapshotStatus.textContent = liveConnected ? "Image pending" : "Unavailable";
 });
 
-setInterval(() => {
-  frameCount += 1;
-  maybeAutoUpdate();
-  render();
-}, 1800);
-
-setInterval(pollLiveStatus, 1000);
-setInterval(() => refreshThermalSnapshot(true), 30000);
-pollLiveStatus();
+drawOfflineField();
 render();
+pollLiveStatus();
+setInterval(pollLiveStatus, 1000);
+setInterval(render, 1000);
+setInterval(() => refreshThermalSnapshot(true), 30000);

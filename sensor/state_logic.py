@@ -40,6 +40,49 @@ class DetectionConfig:
     safe_confirm_seconds: float = 60.0
     tool_smoothing_samples: int = 5
 
+    def __post_init__(self):
+        finite_values = {
+            "human_delta_c": self.human_delta_c,
+            "human_floor_c": self.human_floor_c,
+            "occupied_confirm_seconds": self.occupied_confirm_seconds,
+            "leave_confirm_seconds": self.leave_confirm_seconds,
+            "recently_used_seconds": self.recently_used_seconds,
+            "tool_safe_c": self.tool_safe_c,
+            "tool_alert_c": self.tool_alert_c,
+            "cooling_slope_c_per_min": self.cooling_slope_c_per_min,
+            "cooling_min_drop_c": self.cooling_min_drop_c,
+            "trend_min_seconds": self.trend_min_seconds,
+            "trend_window_seconds": self.trend_window_seconds,
+            "unattended_delay_seconds": self.unattended_delay_seconds,
+            "safe_confirm_seconds": self.safe_confirm_seconds,
+        }
+        invalid = [name for name, value in finite_values.items() if not math.isfinite(value)]
+        if invalid:
+            raise ValueError(f"Detection settings must be finite: {', '.join(invalid)}")
+        if not 0 < self.human_component_fraction <= 1:
+            raise ValueError("human_component_fraction must be in (0, 1]")
+        if not 0 < self.tool_top_fraction <= 1:
+            raise ValueError("tool_top_fraction must be in (0, 1]")
+        if self.human_min_component_pixels < 1 or self.tool_smoothing_samples < 1:
+            raise ValueError("Pixel and smoothing sample counts must be positive")
+        duration_names = (
+            "occupied_confirm_seconds",
+            "leave_confirm_seconds",
+            "recently_used_seconds",
+            "trend_min_seconds",
+            "trend_window_seconds",
+            "unattended_delay_seconds",
+            "safe_confirm_seconds",
+        )
+        if any(getattr(self, name) < 0 for name in duration_names):
+            raise ValueError("Detection durations cannot be negative")
+        if self.trend_window_seconds < self.trend_min_seconds:
+            raise ValueError("trend_window_seconds must be at least trend_min_seconds")
+        if self.tool_alert_c <= self.tool_safe_c:
+            raise ValueError("tool_alert_c must be greater than tool_safe_c")
+        if self.cooling_slope_c_per_min >= 0 or self.cooling_min_drop_c <= 0:
+            raise ValueError("Cooling slope must be negative and minimum drop positive")
+
 
 @dataclass(frozen=True)
 class FrameMetrics:
@@ -123,6 +166,12 @@ def largest_component_size(mask):
 
 def top_fraction_mean(values, fraction):
     flat = np.asarray(values, dtype=np.float32).reshape(-1)
+    if flat.size == 0:
+        raise ValueError("Cannot calculate a top-fraction mean from an empty array.")
+    if not 0 < fraction <= 1:
+        raise ValueError(f"Top fraction must be in (0, 1], got {fraction}.")
+    if not np.all(np.isfinite(flat)):
+        raise ValueError("Temperature values must all be finite.")
     count = max(3, int(math.ceil(flat.size * fraction)))
     count = min(count, flat.size)
     top_values = np.partition(flat, flat.size - count)[-count:]
@@ -130,6 +179,12 @@ def top_fraction_mean(values, fraction):
 
 
 def analyse_frame(temp_c, human_roi, tool_roi, config):
+    temp_c = np.asarray(temp_c, dtype=np.float32)
+    if temp_c.ndim != 2 or temp_c.size == 0:
+        raise ValueError(f"Thermal frame must be a non-empty 2D array, got {temp_c.shape}.")
+    if not np.all(np.isfinite(temp_c)):
+        raise ValueError("Thermal frame contains non-finite values.")
+
     human_region = extract_roi(temp_c, human_roi)
     tool_region = extract_roi(temp_c, tool_roi)
 
@@ -210,6 +265,11 @@ class OccupancyStateMachine:
             recently_used_remaining_seconds=remaining,
         )
 
+    def reset_observation_window(self):
+        """Discard pending enter/leave evidence after a sensor data gap."""
+        self.presence_since = None
+        self.absence_since = None
+
     def _set_state(self, state, now):
         if state != self.state:
             self.state = state
@@ -219,14 +279,17 @@ class OccupancyStateMachine:
 class SafetyStateMachine:
     def __init__(self, config, now=0.0):
         self.config = config
-        self.state = SAFETY_SAFE
+        self.state = SAFETY_MONITORING
         self.state_since = now
         self.unoccupied_since = now
         self.history = deque()
         self.raw_samples = deque(maxlen=max(1, config.tool_smoothing_samples))
-        self.safe_below_since = now - config.safe_confirm_seconds
+        self.safe_below_since = None
 
     def update(self, tool_temperature_c, occupied, now):
+        if not math.isfinite(tool_temperature_c):
+            raise ValueError("Tool temperature must be finite.")
+
         previous_state = self.state
 
         if occupied:
@@ -303,6 +366,13 @@ class SafetyStateMachine:
             trend_c_per_min=trend,
             unoccupied_seconds=unoccupied_seconds,
         )
+
+    def reset_observation_window(self, now):
+        """Require fresh trend and threshold evidence after a sensor data gap."""
+        self.history.clear()
+        self.raw_samples.clear()
+        self.unoccupied_since = now
+        self.safe_below_since = None
 
     def _prune_history(self, now):
         cutoff = now - self.config.trend_window_seconds

@@ -1,0 +1,78 @@
+{
+  "model": "one_hidden_layer_mlp",
+  "note": "Initial neural-network baseline; random frame-level split can overestimate performance for time-correlated video.",
+  "task": "occupancy",
+  "sessions": [
+    "data/raw/20260611_195455",
+    "data/raw/free_neighbor_person_01",
+    "data/raw/train_02"
+  ],
+  "labels": [
+    "not_occupied",
+    "occupied"
+  ],
+  "frame_shape": [
+    60,
+    80
+  ],
+  "hidden_units": 64,
+  "epochs_requested": 80,
+  "epochs_run": 16,
+  "best_val_accuracy": 1.0,
+  "best_val_loss": -0.0,
+  "test_accuracy": 1.0,
+  "test_loss": -0.0,
+  "class_weights": {
+    "not_occupied": 0.6069363951683044,
+    "occupied": 2.8378379344940186
+  },
+  "overall_counts": {
+    "not_occupied": 4450,
+    "occupied": 950
+  },
+  "source_label_counts": {
+    "free": 2029,
+    "occupied": 950,
+    "cooling": 1559,
+    "hot_empty": 862
+  },
+  "split_counts": {
+    "train": {
+      "not_occupied": 3114,
+      "occupied": 666
+    },
+    "val": {
+      "not_occupied": 668,
+      "occupied": 142
+    },
+    "test": {
+      "not_occupied": 668,
+      "occupied": 142
+    }
+  },
+  "confusion_matrix": [
+    [
+      668,
+      0
+    ],
+    [
+      0,
+      142
+    ]
+  ],
+  "model_sha256": "3a36c0b6efadded77b23b3b0e4a5591bee5aa2f3f0e931031736e6eac27c1641",
+  "dataset_fingerprints_sha256": {
+    "data/raw/20260611_195455": "48b8cae405429a3be5c7e06779a59ed1005acbe3b775ab9271e80e9c2bbdd7d7",
+    "data/raw/free_neighbor_person_01": "2504c929bf90d947d02386a2e675bb35457407bce443e78da679ba6cf42d9b17",
+    "data/raw/train_02": "da164519063da11ae55cf6fa520e685e7c4f97229eb9c264ad7a60b8c013e7e7"
+  },
+  "training_parameters": {
+    "seed": 7,
+    "batch_size": 64,
+    "learning_rate": 0.001,
+    "l2": 0.0001,
+    "validation_ratio": 0.15,
+    "test_ratio": 0.15,
+    "early_stopping_patience": 15
+  }
+}

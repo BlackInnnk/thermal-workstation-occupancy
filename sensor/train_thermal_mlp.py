@@ -2,11 +2,13 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+import platform
 
 import numpy as np
 
@@ -53,6 +55,41 @@ NEUTRAL = {
 
 def raw_to_celsius(frame):
     return (frame.astype(np.float32) * 0.01) - 273.15
+
+
+def portable_path(path):
+    """Prefer repository-relative paths in reports so they can be shared safely."""
+    resolved = Path(path).resolve()
+    try:
+        return str(resolved.relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return resolved.name
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def dataset_fingerprint(session_dir):
+    """Hash labels and every referenced radiometric frame for provenance."""
+    session_dir = Path(session_dir)
+    labels_path = session_dir / "labels.csv"
+    digest = hashlib.sha256()
+    digest.update(b"labels.csv\0")
+    digest.update(labels_path.read_bytes())
+
+    with labels_path.open(newline="", encoding="utf-8") as handle:
+        filenames = sorted({row["filename"] for row in csv.DictReader(handle)})
+    for filename in filenames:
+        frame_path = session_dir / filename
+        digest.update(filename.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sha256_file(frame_path).encode("ascii"))
+    return digest.hexdigest()
 
 
 def load_font(size, bold=False):
@@ -121,6 +158,7 @@ def read_dataset_rows(session_dirs, task="state"):
                     {
                         "session": session_dir.name,
                         "frame_index": int(row["frame_index"]),
+                        "filename": row["filename"],
                         "frame_path": frame_path,
                         "source_label": source_label,
                         "label": label,
@@ -134,10 +172,19 @@ def load_frames(rows, labels=LABEL_ORDER):
     y = np.empty(len(rows), dtype=np.int64)
 
     for idx, row in enumerate(rows):
-        frame = np.squeeze(np.load(row["frame_path"]))
+        frame = np.squeeze(np.load(row["frame_path"], allow_pickle=False))
         if frame.shape != (FRAME_HEIGHT, FRAME_WIDTH):
             raise ValueError(f"{row['frame_path']} has shape {frame.shape}, expected 60x80")
-        x[idx] = raw_to_celsius(frame).reshape(-1)
+        if not np.issubdtype(frame.dtype, np.number):
+            raise ValueError(f"{row['frame_path']} does not contain numeric temperatures")
+        if not np.all(np.isfinite(frame)):
+            raise ValueError(f"{row['frame_path']} contains non-finite temperatures")
+
+        temperature_c = raw_to_celsius(frame)
+        if not np.all(np.isfinite(temperature_c)):
+            raise ValueError(f"{row['frame_path']} cannot be converted to finite Celsius values")
+
+        x[idx] = temperature_c.reshape(-1)
         y[idx] = labels.index(row["label"])
 
     return x, y
@@ -307,27 +354,45 @@ def draw_confusion_matrix(path, matrix, title, labels=LABEL_ORDER):
     if Image is None:
         return False
 
-    cell = 96
-    left = 190
-    top = 118
-    width = left + cell * len(labels) + 60
-    height = top + cell * len(labels) + 90
-    image = Image.new("RGB", (width, height), NEUTRAL["background"])
-    draw = ImageDraw.Draw(image)
     title_font = load_font(30, bold=True)
     label_font = load_font(18, bold=True)
     body_font = load_font(18)
     small_font = load_font(14)
 
+    sizing_image = Image.new("RGB", (1, 1), NEUTRAL["background"])
+    sizing_draw = ImageDraw.Draw(sizing_image)
+    label_boxes = [sizing_draw.textbbox((0, 0), label, font=label_font) for label in labels]
+    label_widths = [box[2] - box[0] for box in label_boxes]
+    title_box = sizing_draw.textbbox((0, 0), title, font=title_font)
+    title_width = title_box[2] - title_box[0]
+    subtitle = "Rows are actual labels, columns are predicted labels"
+    subtitle_box = sizing_draw.textbbox((0, 0), subtitle, font=small_font)
+    subtitle_width = subtitle_box[2] - subtitle_box[0]
+
+    cell = max(112, max(label_widths, default=0) + 30)
+    left = max(190, max(label_widths, default=0) + 96)
+    top = 130
+    grid_width = cell * len(labels)
+    width = max(left + grid_width + 60, title_width + 72, subtitle_width + 72)
+    height = top + cell * len(labels) + 90
+    image = Image.new("RGB", (width, height), NEUTRAL["background"])
+    draw = ImageDraw.Draw(image)
+
     draw.text((36, 28), title, fill=NEUTRAL["ink"], font=title_font)
-    draw.text((36, 67), "Rows are actual labels, columns are predicted labels", fill=NEUTRAL["muted"], font=small_font)
+    draw.text((36, 67), subtitle, fill=NEUTRAL["muted"], font=small_font)
 
     max_value = int(matrix.max()) if matrix.size else 1
     max_value = max(max_value, 1)
 
     for col, label in enumerate(labels):
         x = left + col * cell
-        draw.text((x + 8, top - 34), label, fill=NEUTRAL["ink"], font=label_font)
+        label_width = label_widths[col]
+        draw.text(
+            (x + (cell - 8 - label_width) / 2, top - 38),
+            label,
+            fill=NEUTRAL["ink"],
+            font=label_font,
+        )
 
     for row, label in enumerate(labels):
         y = top + row * cell
@@ -363,6 +428,17 @@ def draw_confusion_matrix(path, matrix, title, labels=LABEL_ORDER):
 
 
 def train(args):
+    if args.hidden < 1 or args.epochs < 1 or args.batch_size < 1:
+        raise ValueError("Hidden units, epochs, and batch size must be positive")
+    if args.learning_rate <= 0 or args.l2 < 0:
+        raise ValueError("Learning rate must be positive and L2 cannot be negative")
+    if not 0 < args.val_ratio < 1 or not 0 < args.test_ratio < 1:
+        raise ValueError("Validation and test ratios must be between 0 and 1")
+    if args.val_ratio + args.test_ratio >= 1:
+        raise ValueError("Validation and test ratios must sum to less than 1")
+    if args.patience < 1 or args.log_every < 1:
+        raise ValueError("Patience and log interval must be positive")
+
     session_dirs = [path.resolve() for path in args.sessions]
     labels = TASK_LABELS[args.task]
     rows = read_dataset_rows(session_dirs, task=args.task)
@@ -442,7 +518,7 @@ def train(args):
             break
 
     model = best_model
-    test_pred, test_probs = predict(model, test_x)
+    test_pred, _ = predict(model, test_x)
     test_acc = float(np.mean(test_pred == test_y))
     test_loss = unweighted_loss(model, test_x, test_y)
     matrix = confusion_matrix(test_y, test_pred, len(labels))
@@ -451,8 +527,9 @@ def train(args):
     output_dir = (args.output_dir / run_name).resolve()
     output_dir.mkdir(parents=True, exist_ok=False)
 
+    model_path = output_dir / "model.npz"
     np.savez_compressed(
-        output_dir / "model.npz",
+        model_path,
         w1=model["w1"],
         b1=model["b1"],
         w2=model["w2"],
@@ -478,13 +555,31 @@ def train(args):
     source_counts = Counter(row["source_label"] for row in rows)
 
     metrics = {
+        "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "model": "one_hidden_layer_mlp",
         "note": "Initial neural-network baseline; random frame-level split can overestimate performance for time-correlated video.",
         "task": args.task,
-        "sessions": [str(path) for path in session_dirs],
+        "sessions": [portable_path(path) for path in session_dirs],
         "labels": labels,
         "frame_shape": [FRAME_HEIGHT, FRAME_WIDTH],
         "hidden_units": args.hidden,
+        "model_sha256": sha256_file(model_path),
+        "dataset_fingerprints_sha256": {
+            portable_path(path): dataset_fingerprint(path) for path in session_dirs
+        },
+        "software": {
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+        },
+        "training_parameters": {
+            "seed": args.seed,
+            "batch_size": args.batch_size,
+            "learning_rate": args.learning_rate,
+            "l2": args.l2,
+            "validation_ratio": args.val_ratio,
+            "test_ratio": args.test_ratio,
+            "early_stopping_patience": args.patience,
+        },
         "epochs_requested": args.epochs,
         "epochs_run": len(history),
         "best_val_accuracy": best_val_acc,

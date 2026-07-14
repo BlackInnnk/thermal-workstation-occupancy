@@ -81,6 +81,11 @@ def create_session_dir(output_dir, session_name):
     frames_dir = session_dir / "frames"
     previews_dir = session_dir / "previews"
 
+    if session_dir.exists():
+        raise FileExistsError(
+            f"Dataset session already exists: {session_dir}. "
+            "Choose a new --session name or remove the empty session first."
+        )
     frames_dir.mkdir(parents=True, exist_ok=False)
     previews_dir.mkdir(parents=True, exist_ok=True)
 
@@ -136,11 +141,25 @@ def parse_args():
 
 def main():
     args = parse_args()
-    session_dir, frames_dir, previews_dir = create_session_dir(args.output_dir, args.session)
+    if args.fps <= 0:
+        raise ValueError("--fps must be positive")
+    if args.scale < 1:
+        raise ValueError("--scale must be at least 1")
+    if args.preview_every < 0:
+        raise ValueError("--preview-every cannot be negative")
+    if args.session is not None and Path(args.session).name != args.session:
+        raise ValueError("--session must be a single folder name, not a path")
+
+    # Fail before creating a dataset folder when no desktop/VNC display is available.
+    cv2.namedWindow("Thermal Dataset Collector", cv2.WINDOW_NORMAL)
+    try:
+        session_dir, frames_dir, previews_dir = create_session_dir(args.output_dir, args.session)
+    except FileExistsError as exc:
+        raise SystemExit(str(exc)) from None
     labels_path = session_dir / "labels.csv"
     metadata_path = session_dir / "metadata.txt"
     current_label = args.label
-    frame_interval = 1.0 / max(args.fps, 0.1)
+    frame_interval = 1.0 / args.fps
     frame_index = 0
 
     metadata_path.write_text(
@@ -187,14 +206,25 @@ def main():
             next_save_time = 0.0
 
             while True:
-                frame, _ = lepton.capture()
-                frame = np.squeeze(frame).astype(np.uint16)
+                try:
+                    frame, _ = lepton.capture()
+                    frame = np.squeeze(frame).astype(np.uint16)
+                except (AttributeError, OSError, TypeError, ValueError) as exc:
+                    print(f"Thermal capture failed; retrying: {exc}")
+                    time.sleep(0.2)
+                    continue
+                if frame.shape != (60, 80):
+                    print(f"Ignoring frame with shape {frame.shape}; expected (60, 80).")
+                    continue
+                if np.all(frame == frame.flat[0]) or np.mean((frame == 0) | (frame == 65535)) > 0.05:
+                    print("Ignoring invalid thermal frame.")
+                    continue
                 temp_c = raw_to_celsius(frame)
 
                 preview = make_preview(frame, current_label, frame_index, args.scale, is_recording)
                 cv2.imshow("Thermal Dataset Collector", preview)
 
-                now = time.time()
+                now = time.monotonic()
                 if is_recording and now >= next_save_time:
                     filename = f"frame_{frame_index:06d}.npy"
                     frame_path = frames_dir / filename

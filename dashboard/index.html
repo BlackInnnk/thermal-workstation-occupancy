@@ -3,15 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Thermal Workstation Occupancy Dashboard</title>
+    <title>Hot Seat Live Dashboard</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="ambient" aria-hidden="true">
-      <span class="blob blob-a"></span>
-      <span class="blob blob-b"></span>
-      <span class="blob blob-c"></span>
-    </div>
+    <div class="ambient" aria-hidden="true"></div>
+    <div class="sr-only" id="stateAnnouncement" aria-live="polite" aria-atomic="true"></div>
 
     <main class="app-shell">
       <header class="navbar glass">
@@ -30,10 +27,10 @@
           </div>
         </a>
 
-        <div class="sync-panel" aria-live="polite">
+        <div class="sync-panel">
           <span class="live-dot" id="syncDot"></span>
           <div class="sync-copy">
-            <span class="sync-label" id="syncLabel">Demo fallback</span>
+            <span class="sync-label" id="syncLabel">Connecting</span>
             <strong id="lastUpdated">--</strong>
           </div>
         </div>
@@ -52,14 +49,18 @@
           <div class="section-title-row">
             <div>
               <h2>Live thermal field</h2>
-              <p id="thermalCaption">Simulated 80x60 radiometric frame for one monitored workstation.</p>
+              <p id="thermalCaption">Waiting for the Raspberry Pi thermal feed.</p>
             </div>
             <span class="chip" id="frameLabel">Frame 0000</span>
           </div>
 
           <div class="heatmap-frame">
-            <canvas id="heatmapCanvas" width="800" height="520" aria-label="Simulated thermal heatmap"></canvas>
+            <canvas id="heatmapCanvas" width="800" height="520" aria-label="Thermal preview placeholder"></canvas>
             <img id="thermalSnapshot" alt="Live thermal preview from the Raspberry Pi monitor" />
+            <div class="feed-placeholder" id="feedPlaceholder" aria-live="polite">
+              <strong id="feedPlaceholderTitle">Connecting to the sensor</strong>
+              <span id="feedPlaceholderText">Waiting for the Raspberry Pi monitor.</span>
+            </div>
             <div class="roi roi-one">
               <span>Workstation ROI</span>
             </div>
@@ -93,7 +94,7 @@
 
             <div class="status-metrics">
               <div class="metric-tile">
-                <span>Occupancy</span>
+                <span>Occupied probability</span>
                 <strong id="workstation-confidence">--</strong>
               </div>
               <div class="metric-tile">
@@ -113,7 +114,7 @@
             <div class="state-context">
               <div>
                 <span>Detection mode</span>
-                <strong id="detectionMode">Demo</strong>
+                <strong id="detectionMode">--</strong>
               </div>
               <div>
                 <span>Thermal preview</span>
@@ -124,9 +125,9 @@
             <div class="compact-history" aria-label="Recent occupancy">
               <div class="compact-history-heading">
                 <span>Recent occupancy</span>
-                <span>Last 12 samples</span>
+                <span>Latest 12 readings</span>
               </div>
-              <div class="timeline" id="workstation-timeline"></div>
+              <div class="timeline" id="workstation-timeline" role="list"></div>
             </div>
           </article>
         </aside>
@@ -135,7 +136,7 @@
       <section class="bottom-grid">
         <section class="activity-panel glass">
           <div class="section-title-row">
-            <h2>Event log</h2>
+            <h2>Browser session log</h2>
             <span class="chip" id="eventCount">0 events</span>
           </div>
           <ul id="eventLog"></ul>
@@ -144,7 +145,7 @@
         <section class="system-panel glass">
           <div class="section-title-row">
             <h2>Detection stack</h2>
-            <span class="chip" id="simulationState">Auto update on</span>
+            <span class="chip" id="connectionState">Connecting</span>
           </div>
           <div class="stack-list" aria-label="Detection stack">
             <div>
@@ -157,7 +158,7 @@
             </div>
             <div>
               <span>Thermal preview</span>
-              <strong>Updated every 30 seconds</strong>
+              <strong id="stackSnapshotInterval">Updated every 30 seconds</strong>
             </div>
           </div>
         </section>

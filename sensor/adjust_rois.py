@@ -4,19 +4,19 @@ import argparse
 import ast
 from pathlib import Path
 import re
+import time
 
 import cv2
 import numpy as np
 from pylepton import Lepton
 
+from thermal_roi_viewer import DEFAULT_ROIS as VIEWER_DEFAULT_ROIS
+
 
 FRAME_WIDTH = 80
 FRAME_HEIGHT = 60
 MIN_SIZE = 2
-DEFAULT_ROIS = {
-    "Tool Area": (0, 20, 28, 25),
-    "Human Area": (38, 4, 42, 55),
-}
+DEFAULT_ROIS = dict(VIEWER_DEFAULT_ROIS)
 
 LEFT_KEYS = {81, 2424832, 65361, 63234}
 UP_KEYS = {82, 2490368, 65362, 63232}
@@ -199,6 +199,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.scale < 1:
+        raise ValueError("--scale must be at least 1")
     rois = load_rois(args.viewer_file)
     names = list(rois.keys())
     selected_index = 0
@@ -210,8 +212,19 @@ def main():
 
     with Lepton(args.device) as lepton:
         while True:
-            frame, _ = lepton.capture()
-            frame = np.squeeze(frame).astype(np.uint16)
+            try:
+                frame, _ = lepton.capture()
+                frame = np.squeeze(frame).astype(np.uint16)
+            except (AttributeError, OSError, TypeError, ValueError) as exc:
+                print(f"Thermal capture failed; retrying: {exc}")
+                time.sleep(0.2)
+                continue
+            if frame.shape != (FRAME_HEIGHT, FRAME_WIDTH):
+                print(
+                    f"Ignoring frame with shape {frame.shape}; "
+                    f"expected {(FRAME_HEIGHT, FRAME_WIDTH)}."
+                )
+                continue
             display = make_display(frame, args.scale)
             selected_name = names[selected_index]
 

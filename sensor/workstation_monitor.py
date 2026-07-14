@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import time
@@ -31,6 +31,8 @@ FRAME_WIDTH = 80
 FRAME_HEIGHT = 60
 INPUT_DIM = FRAME_WIDTH * FRAME_HEIGHT
 OCCUPANCY_MODEL_LABELS = ["not_occupied", "occupied"]
+OBSERVATION_GAP_RESET_SECONDS = 2.0
+CAPTURE_ERROR_LOG_INTERVAL_SECONDS = 30.0
 
 OCCUPANCY_COLORS = {
     "FREE": (80, 210, 130),
@@ -58,24 +60,51 @@ def softmax(logits):
 
 
 def load_occupancy_model(model_path):
-    data = np.load(model_path)
-    labels = [str(label) for label in data["labels"]]
-    if labels != OCCUPANCY_MODEL_LABELS:
-        raise ValueError(
-            f"{model_path} is not a binary occupancy model. "
-            f"Expected labels {OCCUPANCY_MODEL_LABELS}, got {labels}."
-        )
+    model_path = Path(model_path)
+    with np.load(model_path, allow_pickle=False) as data:
+        labels = [str(label) for label in data["labels"]]
+        if labels != OCCUPANCY_MODEL_LABELS:
+            raise ValueError(
+                f"{model_path} is not a binary occupancy model. "
+                f"Expected labels {OCCUPANCY_MODEL_LABELS}, got {labels}."
+            )
 
-    return {
-        "path": str(model_path),
-        "labels": labels,
-        "w1": data["w1"].astype(np.float32),
-        "b1": data["b1"].astype(np.float32),
-        "w2": data["w2"].astype(np.float32),
-        "b2": data["b2"].astype(np.float32),
-        "mean": data["mean"].astype(np.float32),
-        "std": data["std"].astype(np.float32),
-    }
+        model = {
+            "path": model_path.name,
+            "labels": labels,
+            "w1": data["w1"].astype(np.float32),
+            "b1": data["b1"].astype(np.float32),
+            "w2": data["w2"].astype(np.float32),
+            "b2": data["b2"].astype(np.float32),
+            "mean": data["mean"].astype(np.float32),
+            "std": data["std"].astype(np.float32),
+        }
+
+    valid_normalisation_shapes = {(INPUT_DIM,), (1, INPUT_DIM)}
+    if (
+        model["mean"].shape not in valid_normalisation_shapes
+        or model["std"].shape not in valid_normalisation_shapes
+    ):
+        raise ValueError(f"{model_path} does not contain 80x60 normalisation data.")
+    hidden_units = model["w1"].shape[1] if model["w1"].ndim == 2 else None
+    if (
+        hidden_units is None
+        or model["w1"].shape[0] != INPUT_DIM
+        or model["b1"].shape not in {(hidden_units,), (1, hidden_units)}
+        or model["w2"].shape != (hidden_units, len(labels))
+        or model["b2"].shape not in {(len(labels),), (1, len(labels))}
+    ):
+        raise ValueError(f"{model_path} contains incompatible network dimensions.")
+    numeric_arrays = ("w1", "b1", "w2", "b2", "mean", "std")
+    if not all(np.all(np.isfinite(model[name])) for name in numeric_arrays):
+        raise ValueError(f"{model_path} contains non-finite model values.")
+    if np.any(model["std"] <= 0):
+        raise ValueError(f"{model_path} contains invalid standard-deviation values.")
+
+    model["mean"] = model["mean"].reshape(1, INPUT_DIM)
+    model["std"] = model["std"].reshape(1, INPUT_DIM)
+
+    return model
 
 
 def predict_occupancy(model, temp_c):
@@ -189,7 +218,7 @@ def make_status_panel(height, occupancy, safety, metrics, config, model_status):
         cv2.line(panel, (18, 482), (360, 482), (70, 74, 82), 1)
         if model_status:
             put_panel_line(panel, f"Tool P95: {metrics.tool_p95_c:.1f} C", 510, (155, 160, 170), 0.45)
-            put_panel_line(panel, "Human source: deep learning", 536, (155, 160, 170), 0.45)
+            put_panel_line(panel, "Human source: binary ML model", 536, (155, 160, 170), 0.45)
         else:
             put_panel_line(panel, "Human source: ROI rules", 510, (155, 160, 170), 0.45)
             put_panel_line(panel, "Press q to quit", 536, (155, 160, 170), 0.45)
@@ -216,7 +245,7 @@ def write_snapshot(path, image):
 
 
 def write_status_file(path, occupancy, safety, metrics, model_status, snapshot_status):
-    timestamp = datetime.now()
+    timestamp = datetime.now(timezone.utc)
     occupancy_payload = asdict(occupancy)
     safety_payload = asdict(safety)
     occupancy_payload["changed_at"] = (
@@ -237,7 +266,10 @@ def write_status_file(path, occupancy, safety, metrics, model_status, snapshot_s
 
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = path.with_suffix(path.suffix + ".tmp")
-    temporary_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary_path.write_text(
+        json.dumps(payload, indent=2, allow_nan=False),
+        encoding="utf-8",
+    )
     temporary_path.replace(path)
 
 
@@ -278,6 +310,12 @@ def parse_args():
         help="Seconds between dashboard thermal preview image updates.",
     )
     parser.add_argument(
+        "--status-interval",
+        type=float,
+        default=1.0,
+        help="Seconds between status.json writes; state changes are written immediately.",
+    )
+    parser.add_argument(
         "--no-window",
         action="store_true",
         help="Run without an OpenCV preview window. Useful for background dashboard service mode.",
@@ -303,6 +341,12 @@ def parse_args():
 
 def main():
     args = parse_args()
+    if args.scale < 1:
+        raise ValueError("--scale must be at least 1")
+    if not 0.0 <= args.model_threshold <= 1.0:
+        raise ValueError("--model-threshold must be between 0 and 1")
+    if args.snapshot_interval <= 0 or args.status_interval <= 0 or args.log_interval <= 0:
+        raise ValueError("Snapshot, status, and log intervals must be positive")
     if "Human Area" not in DEFAULT_ROIS or "Tool Area" not in DEFAULT_ROIS:
         raise KeyError("DEFAULT_ROIS must contain 'Human Area' and 'Tool Area'")
 
@@ -328,8 +372,12 @@ def main():
     occupancy_machine = OccupancyStateMachine(config, now=start_time)
     safety_machine = SafetyStateMachine(config, now=start_time)
     last_log_time = 0.0
+    last_status_time = 0.0
     last_snapshot_time = 0.0
     last_snapshot_timestamp = None
+    capture_errors = 0
+    last_capture_error_log_time = 0.0
+    last_valid_capture_time = None
 
     print("Starting workstation monitor.")
     print(f"Human ROI: {DEFAULT_ROIS['Human Area']}")
@@ -349,10 +397,69 @@ def main():
 
     with Lepton(args.device) as lepton:
         while True:
-            frame, _ = lepton.capture()
-            frame = np.squeeze(frame).astype(np.uint16)
-            temp_c = raw_to_celsius(frame)
+            try:
+                frame, _ = lepton.capture()
+                frame = np.squeeze(frame).astype(np.uint16)
+            except (AttributeError, OSError, TypeError, ValueError) as exc:
+                capture_errors += 1
+                error_time = time.monotonic()
+                if (
+                    capture_errors == 1
+                    or error_time - last_capture_error_log_time
+                    >= CAPTURE_ERROR_LOG_INTERVAL_SECONDS
+                ):
+                    print(f"Thermal capture failed ({capture_errors} consecutive): {exc}")
+                    last_capture_error_log_time = error_time
+                time.sleep(0.2)
+                continue
+
+            if frame.shape != (FRAME_HEIGHT, FRAME_WIDTH):
+                capture_errors += 1
+                error_time = time.monotonic()
+                if (
+                    capture_errors == 1
+                    or error_time - last_capture_error_log_time
+                    >= CAPTURE_ERROR_LOG_INTERVAL_SECONDS
+                ):
+                    print(
+                        f"Ignoring thermal frame with shape {frame.shape}; "
+                        f"expected {(FRAME_HEIGHT, FRAME_WIDTH)}."
+                    )
+                    last_capture_error_log_time = error_time
+                time.sleep(0.05)
+                continue
+            if np.all(frame == frame.flat[0]) or np.mean((frame == 0) | (frame == 65535)) > 0.05:
+                capture_errors += 1
+                error_time = time.monotonic()
+                if (
+                    capture_errors == 1
+                    or error_time - last_capture_error_log_time
+                    >= CAPTURE_ERROR_LOG_INTERVAL_SECONDS
+                ):
+                    print(f"Ignoring invalid thermal frame ({capture_errors} consecutive).")
+                    last_capture_error_log_time = error_time
+                time.sleep(0.05)
+                continue
+
             now = time.monotonic()
+            if (
+                last_valid_capture_time is not None
+                and now - last_valid_capture_time > OBSERVATION_GAP_RESET_SECONDS
+            ):
+                gap_seconds = now - last_valid_capture_time
+                occupancy_machine.reset_observation_window()
+                safety_machine.reset_observation_window(now)
+                print(
+                    f"Resetting temporal evidence after a {gap_seconds:.1f}s sensor gap."
+                )
+            last_valid_capture_time = now
+
+            if capture_errors:
+                print(f"Thermal capture recovered after {capture_errors} rejected frame(s).")
+                capture_errors = 0
+                last_capture_error_log_time = 0.0
+
+            temp_c = raw_to_celsius(frame)
 
             metrics = analyse_frame(
                 temp_c,
@@ -399,17 +506,32 @@ def main():
             if now - last_snapshot_time >= args.snapshot_interval:
                 write_snapshot(args.snapshot_file, heatmap)
                 last_snapshot_time = now
-                last_snapshot_timestamp = datetime.now().isoformat(timespec="milliseconds")
+                last_snapshot_timestamp = datetime.now(timezone.utc).isoformat(
+                    timespec="milliseconds"
+                )
 
             panel = make_status_panel(heatmap.shape[0], occupancy, safety, metrics, config, model_status)
             display = np.hstack((heatmap, panel))
             snapshot_status = {
-                "path": str(args.snapshot_file),
-                "url": "../data/runtime/thermal_view.jpg",
+                "path": args.snapshot_file.name,
+                "url": "/data/runtime/thermal_view.jpg",
                 "updated_at": last_snapshot_timestamp,
                 "interval_seconds": args.snapshot_interval,
             }
-            write_status_file(args.status_file, occupancy, safety, metrics, model_status, snapshot_status)
+            if (
+                occupancy.changed
+                or safety.changed
+                or now - last_status_time >= args.status_interval
+            ):
+                write_status_file(
+                    args.status_file,
+                    occupancy,
+                    safety,
+                    metrics,
+                    model_status,
+                    snapshot_status,
+                )
+                last_status_time = now
 
             if occupancy.changed or safety.changed:
                 print(

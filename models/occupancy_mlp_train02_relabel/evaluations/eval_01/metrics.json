@@ -1,0 +1,60 @@
+{
+  "created_at": "2026-07-13T23:55:28+00:00",
+  "model_path": "models/occupancy_mlp_train02_relabel/model.npz",
+  "model_sha256": "3a36c0b6efadded77b23b3b0e4a5591bee5aa2f3f0e931031736e6eac27c1641",
+  "task": "occupancy",
+  "sessions": [
+    "data/raw/eval_01"
+  ],
+  "dataset_fingerprints_sha256": {
+    "data/raw/eval_01": "6b43a2a65ce3a88617e2e83bcd3f0a37d9867cf83c3a0ec98f2b1423b9e43ed8"
+  },
+  "software": {
+    "python": "3.9.13",
+    "numpy": "1.24.3"
+  },
+  "labels": [
+    "not_occupied",
+    "occupied"
+  ],
+  "frames": 1592,
+  "accuracy": 1.0,
+  "loss": 6.589492951292186e-09,
+  "label_counts": {
+    "not_occupied": 1199,
+    "occupied": 393
+  },
+  "source_label_counts": {
+    "free": 517,
+    "occupied": 393,
+    "cooling": 318,
+    "hot_empty": 364
+  },
+  "class_metrics": [
+    {
+      "label": "not_occupied",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 1199
+    },
+    {
+      "label": "occupied",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 393
+    }
+  ],
+  "confusion_matrix": [
+    [
+      1199,
+      0
+    ],
+    [
+      0,
+      393
+    ]
+  ],
+  "note": "This is an independent session-level evaluation when the evaluated sessions were not used for training."
+}

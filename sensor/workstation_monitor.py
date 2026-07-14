@@ -33,6 +33,7 @@ INPUT_DIM = FRAME_WIDTH * FRAME_HEIGHT
 OCCUPANCY_MODEL_LABELS = ["not_occupied", "occupied"]
 OBSERVATION_GAP_RESET_SECONDS = 2.0
 CAPTURE_ERROR_LOG_INTERVAL_SECONDS = 30.0
+EVENT_LOG_LIMIT = 50
 
 OCCUPANCY_COLORS = {
     "FREE": (80, 210, 130),
@@ -273,6 +274,69 @@ def write_status_file(path, occupancy, safety, metrics, model_status, snapshot_s
     temporary_path.replace(path)
 
 
+def title_case_state(value):
+    return str(value).replace("_", " ").title()
+
+
+def build_event_message(previous_occupancy, occupancy, previous_safety, safety):
+    parts = []
+    if previous_occupancy != occupancy.state:
+        parts.append(
+            "Occupancy "
+            f"{title_case_state(previous_occupancy)} -> {title_case_state(occupancy.state)}"
+        )
+    if previous_safety != safety.state:
+        parts.append(
+            f"Safety {title_case_state(previous_safety)} -> {title_case_state(safety.state)}"
+        )
+    return "; ".join(parts)
+
+
+def append_event_file(path, previous_occupancy, occupancy, previous_safety, safety, metrics):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        existing = []
+    if not isinstance(existing, list):
+        existing = []
+
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    event = {
+        "timestamp": timestamp,
+        "message": build_event_message(
+            previous_occupancy,
+            occupancy,
+            previous_safety,
+            safety,
+        ),
+        "occupancy": {
+            "previous": previous_occupancy,
+            "current": occupancy.state,
+        },
+        "safety": {
+            "previous": previous_safety,
+            "current": safety.state,
+            "tool_temperature_c": round(float(safety.tool_temperature_c), 2),
+        },
+        "metrics": {
+            "ambient_c": round(float(metrics.ambient_c), 2),
+            "human_component_pixels": int(metrics.human_component_pixels),
+        },
+    }
+
+    events = [event] + [
+        item for item in existing if isinstance(item, dict) and item.get("timestamp")
+    ]
+    events = events[:EVENT_LOG_LIMIT]
+    temporary_path = path.with_suffix(path.suffix + ".tmp")
+    temporary_path.write_text(
+        json.dumps(events, indent=2, allow_nan=False),
+        encoding="utf-8",
+    )
+    temporary_path.replace(path)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Monitor workstation occupancy and unattended thermal safety."
@@ -296,6 +360,12 @@ def parse_args():
         type=Path,
         default=Path("data/runtime/status.json"),
         help="JSON file updated with current states and metrics.",
+    )
+    parser.add_argument(
+        "--event-file",
+        type=Path,
+        default=Path("data/runtime/events.json"),
+        help="JSON file containing recent occupancy and safety state changes.",
     )
     parser.add_argument(
         "--snapshot-file",
@@ -378,6 +448,8 @@ def main():
     capture_errors = 0
     last_capture_error_log_time = 0.0
     last_valid_capture_time = None
+    last_event_occupancy_state = occupancy_machine.state
+    last_event_safety_state = safety_machine.state
 
     print("Starting workstation monitor.")
     print(f"Human ROI: {DEFAULT_ROIS['Human Area']}")
@@ -534,6 +606,19 @@ def main():
                 last_status_time = now
 
             if occupancy.changed or safety.changed:
+                try:
+                    append_event_file(
+                        args.event_file,
+                        last_event_occupancy_state,
+                        occupancy,
+                        last_event_safety_state,
+                        safety,
+                        metrics,
+                    )
+                    last_event_occupancy_state = occupancy.state
+                    last_event_safety_state = safety.state
+                except OSError as exc:
+                    print(f"Failed to write event log: {exc}")
                 print(
                     f"STATE occupancy={occupancy.state} safety={safety.state} "
                     f"human={human_detected} tool={safety.tool_temperature_c:.1f}C"

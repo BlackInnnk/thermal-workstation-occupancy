@@ -67,6 +67,7 @@ The custom Python server exposes only the project UI and current runtime outputs
 | `/dashboard/live/` | Live workstation dashboard |
 | `/healthz` | Server and sensor freshness as JSON |
 | `/data/runtime/status.json` | Current machine-readable state |
+| `/data/runtime/events.json` | Recent occupancy and safety state changes |
 | `/data/runtime/thermal_view.jpg` | Low-resolution thermal preview |
 
 The server does not expose `data/raw/`, training data, source code, logs, or model files.
@@ -279,6 +280,7 @@ Unattended alert delay:      3 minutes
 Safe confirmation:           below 38 C for 60 seconds
 Thermal web snapshot:        every 30 seconds
 Live status JSON:            every 1 second, plus immediate state changes
+State change log:            recent occupancy and safety transitions in data/runtime/events.json
 Sensor gap reset:            after more than 2 seconds without a valid frame
 ```
 

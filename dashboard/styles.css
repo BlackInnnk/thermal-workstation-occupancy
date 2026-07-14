@@ -807,6 +807,15 @@ a:focus-visible {
   border-bottom: 0;
 }
 
+#eventLog li.event-log-empty {
+  color: var(--muted);
+}
+
+#eventLog li.event-log-empty strong {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 #eventLog strong {
   color: var(--text);
   font-weight: 600;

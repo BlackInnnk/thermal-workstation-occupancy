@@ -18,7 +18,8 @@ let lastSnapshotRefreshAt = 0;
 let snapshotIntervalSeconds = 30;
 let thermalSnapshotUrl = "/data/runtime/thermal_view.jpg";
 let pollInFlight = false;
-let eventLog = [{ time: Date.now(), message: "Waiting for the live sensor feed" }];
+let eventLog = [];
+const MAX_EVENT_LOG_ITEMS = 20;
 
 const canvas = document.getElementById("heatmapCanvas");
 const ctx = canvas.getContext("2d");
@@ -64,11 +65,6 @@ function timeAgo(timestamp) {
   return `${hours}h ago`;
 }
 
-function addEvent(message) {
-  eventLog.unshift({ time: Date.now(), message });
-  eventLog = eventLog.slice(0, 8);
-}
-
 function titleCaseState(value) {
   return String(value || "--")
     .toLowerCase()
@@ -112,7 +108,6 @@ function liveStateChangedAt(payload) {
 function setConnectionState(nextState, message) {
   const changed = connectionState !== nextState;
   if (changed && message) {
-    addEvent(message);
     ids.stateAnnouncement.textContent = message;
   }
   connectionState = nextState;
@@ -163,10 +158,8 @@ function applyLiveStatus(payload) {
   setConnectionState("live", "Live sensor feed connected");
 
   if (previousStatus !== occupancyState || previousSafety !== safetyState) {
-    const stateMessage =
+    ids.stateAnnouncement.textContent =
       `Live: ${workstation.name} ${titleCaseState(occupancyState)}, safety ${titleCaseState(safetyState)}`;
-    addEvent(stateMessage);
-    ids.stateAnnouncement.textContent = stateMessage;
   }
 
   workstation.occupied = occupied;
@@ -187,16 +180,45 @@ function applyLiveStatus(payload) {
   }
 }
 
+function applyRuntimeEvents(payload) {
+  const source = Array.isArray(payload) ? payload : payload?.events;
+  if (!Array.isArray(source)) {
+    eventLog = [];
+    return;
+  }
+
+  eventLog = source
+    .map((event) => {
+      const timestamp = Date.parse(event?.timestamp || event?.time || "");
+      const message = typeof event?.message === "string" ? event.message.trim() : "";
+      if (!Number.isFinite(timestamp) || !message) return null;
+      return { time: timestamp, message };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.time - a.time)
+    .slice(0, MAX_EVENT_LOG_ITEMS);
+}
+
 async function pollLiveStatus() {
   if (pollInFlight) return;
   pollInFlight = true;
 
   try {
     const cacheBust = Date.now();
-    const [statusResponse, healthResponse] = await Promise.all([
+    const [statusResponse, healthResponse, eventsResponse] = await Promise.all([
       fetch(`/data/runtime/status.json?ts=${cacheBust}`, { cache: "no-store" }),
       fetch(`/healthz?ts=${cacheBust}`, { cache: "no-store" }),
+      fetch(`/data/runtime/events.json?ts=${cacheBust}`, { cache: "no-store" }),
     ]);
+    if (eventsResponse.ok) {
+      try {
+        applyRuntimeEvents(await eventsResponse.json());
+      } catch {
+        eventLog = [];
+      }
+    } else {
+      eventLog = [];
+    }
     if (!statusResponse.ok || !healthResponse.ok) throw new Error("Live endpoint unavailable");
 
     const [payload, health] = await Promise.all([
@@ -284,6 +306,19 @@ function renderWorkstation() {
 
 function renderEventLog() {
   ids.eventLog.innerHTML = "";
+  if (eventLog.length === 0) {
+    const item = document.createElement("li");
+    item.className = "event-log-empty";
+    const message = document.createElement("strong");
+    const time = document.createElement("span");
+    message.textContent = "No state changes recorded yet";
+    time.textContent = "--";
+    item.append(message, time);
+    ids.eventLog.appendChild(item);
+    ids.eventCount.textContent = "0 events";
+    return;
+  }
+
   eventLog.forEach((event) => {
     const item = document.createElement("li");
     const message = document.createElement("strong");

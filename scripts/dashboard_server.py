@@ -109,6 +109,8 @@ def resolve_file_request(
 
     if path == "/data/runtime/status.json":
         return runtime_dir / "status.json", "no-store"
+    if path == "/data/runtime/events.json":
+        return runtime_dir / "events.json", "no-store"
     if path == "/data/runtime/thermal_view.jpg":
         return runtime_dir / "thermal_view.jpg", "no-store"
     return None

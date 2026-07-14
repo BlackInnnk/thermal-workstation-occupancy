@@ -124,6 +124,12 @@ class DashboardRouteTests(unittest.TestCase):
     def test_raw_dataset_is_not_served(self):
         self.assertIsNone(self.resolve("/data/raw/secret.txt"))
 
+    def test_runtime_events_file_is_served_without_cache(self):
+        event_path, cache_policy = self.resolve("/data/runtime/events.json")
+
+        self.assertEqual(event_path, self.root / "data" / "runtime" / "events.json")
+        self.assertEqual(cache_policy, "no-store")
+
     def test_asset_traversal_is_rejected(self):
         self.assertIsNone(self.resolve("/assets/../data/raw/secret.txt"))
 

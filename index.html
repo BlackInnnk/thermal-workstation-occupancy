@@ -113,6 +113,7 @@
       .shell {
         width: min(1160px, calc(100% - 48px));
         margin: 0 auto;
+        scroll-margin-top: 112px;
       }
 
       /* --- Navbar --------------------------------------------------------- */
@@ -717,13 +718,14 @@
 
       .evidence-showcase {
         display: grid;
-        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-        gap: 18px;
+        grid-template-columns: 1fr;
+        gap: 22px;
         align-items: stretch;
       }
 
       .evidence-panel {
         padding: 24px;
+        min-width: 0;
       }
 
       .evidence-panel h3 {
@@ -746,6 +748,7 @@
         display: grid;
         gap: 12px;
         margin-top: 22px;
+        align-items: start;
       }
 
       .thermal-pair {
@@ -770,17 +773,18 @@
       .state-shot img {
         display: block;
         width: 100%;
+        height: auto;
         background: #05070d;
       }
 
       .thermal-frame img {
         aspect-ratio: 4 / 3;
-        object-fit: cover;
+        object-fit: contain;
       }
 
       .state-shot img {
-        aspect-ratio: 16 / 9;
-        object-fit: cover;
+        aspect-ratio: 1400 / 765;
+        object-fit: contain;
         object-position: top center;
       }
 
